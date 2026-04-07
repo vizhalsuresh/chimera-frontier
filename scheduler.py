@@ -190,9 +190,9 @@ def run_scheduler_tick(config: dict) -> None:
     # Advance state
     new_hour = hour_in_cycle + 1
     if new_hour >= len(config["rotation_order"]):
-        # Completed the work block — reset for next cycle
+        # Completed the work block — reset rotation for next cycle
         new_state = {
-            "cycle_index": (cycle_index + len(config["rotation_order"])) % 1000,
+            "cycle_index": 0,
             "hour_in_cycle": 0,
             "last_run_iso": datetime.now(timezone.utc).isoformat(),
             "sync_pending": True,  # signal orchestrator to run claude_sync
