@@ -187,13 +187,50 @@ def list_schedules() -> None:
 # MQTT control
 # ---------------------------------------------------------------------------
 
-def build_payload(action: str) -> str:
-    return json.dumps({
-        "ki": 1,
+# Note: these numeric codes are based on Miraie MQTT reverse-engineering.
+# Verify against your device if a field doesn't respond as expected.
+_MODE_MAP = {"auto": 0, "cool": 1, "heat": 2, "dry": 3, "fan": 4}
+_FAN_MAP  = {"auto": 0, "quiet": 1, "low": 2, "medium": 3, "high": 4}
+
+
+def build_payload(
+    action: str,
+    *,
+    temp:        int  = 22,
+    mode:        str  = "cool",
+    fan:         str  = "auto",
+    swing_v:     bool = True,
+    swing_h:     bool = False,
+    swing_angle: int  = 3,    # 1–5 fixed position (used when swing_v=False)
+    eco:         bool = False,
+    powerful:    bool = False,
+    quiet:       bool = False,
+    nanoe:       bool = False,
+) -> str:
+    """
+    Build the Miraie MQTT control payload.
+    Core fields (ps/tm/md/fs) are confirmed working.
+    Extended fields (sv/sh/ec/tt/qt/na) follow common Panasonic MQTT patterns —
+    verify against your specific unit if a feature doesn't respond as expected.
+    """
+    payload: dict = {
+        "ki":  1,
         "cnt": "an",
         "sid": "1",
-        "ps": "on" if action == "on" else "off",
-    })
+        "ps":  "on" if action == "on" else "off",
+        "tm":  temp,
+        "md":  _MODE_MAP.get(mode, 1),
+        "fs":  _FAN_MAP.get(fan, 0),
+        # Airflow
+        "sv":  "auto" if swing_v else str(swing_angle),   # vertical swing / fixed pos
+        "sh":  "auto" if swing_h else "stop",              # horizontal swing
+        # Advanced — mutually exclusive: powerful overrides eco
+        "tt":  "on" if powerful  else "off",   # turbo/powerful
+        "ec":  "on" if (eco and not powerful) else "off",  # eco
+        "qt":  "on" if quiet     else "off",   # quiet/sleep
+        "na":  "on" if nanoe     else "off",   # air purification (Nanoe)
+    }
+    return json.dumps(payload)
 
 
 class MiraieController:
@@ -234,14 +271,33 @@ class MiraieController:
         if not self._connected.wait(timeout=15):
             raise ConnectionError("MQTT connection timed out")
 
-    def send(self, action: str, device_index: int = 0) -> None:
-        device = self.session["devices"][device_index]
-        topic  = device["control_topic"]
-        payload = build_payload(action)
+    def send(
+        self,
+        action: str,
+        device_index: int = 0,
+        *,
+        temp:        int  = 22,
+        mode:        str  = "cool",
+        fan:         str  = "auto",
+        swing_v:     bool = True,
+        swing_h:     bool = False,
+        swing_angle: int  = 3,
+        eco:         bool = False,
+        powerful:    bool = False,
+        quiet:       bool = False,
+        nanoe:       bool = False,
+    ) -> None:
+        device  = self.session["devices"][device_index]
+        topic   = device["control_topic"]
+        payload = build_payload(
+            action, temp=temp, mode=mode, fan=fan,
+            swing_v=swing_v, swing_h=swing_h, swing_angle=swing_angle,
+            eco=eco, powerful=powerful, quiet=quiet, nanoe=nanoe,
+        )
         result = self.client.publish(topic, payload, qos=1)
         result.wait_for_publish(timeout=5)
-        log.info("Sent %s → %s (topic: .../%s/control)",
-                 action.upper(), device["name"], device["id"][-6:])
+        log.info("Sent %s → %s  T=%d M=%s F=%s eco=%s powerful=%s quiet=%s",
+                 action.upper(), device["name"], temp, mode, fan, eco, powerful, quiet)
 
     def disconnect(self) -> None:
         if self.client:
@@ -264,40 +320,66 @@ def should_fire(schedule: dict) -> bool:
     )
 
 
+def _read_ac_state() -> dict:
+    """Read saved AC state for temp/mode/fan. Falls back to safe defaults."""
+    state_file = HERE / "ac_state.json"
+    if state_file.exists():
+        try:
+            return json.loads(state_file.read_text())
+        except Exception:
+            pass
+    return {"temp": 22, "mode": "cool", "fan": "auto"}
+
+
 def run_daemon(device_index: int = 0) -> None:
+    """
+    Legacy continuous scheduler daemon.
+
+    NOTE: The preferred approach is now cron-based scheduling via cron_manager.py.
+    This daemon is kept for environments where cron is unavailable.
+    Use: python3 miraie_scheduler.py --run
+    """
     session = load_session()
     controller = MiraieController(session)
     controller.connect()
 
     fired_this_minute: set[str] = set()
-    log.info("Scheduler daemon running. Checking every 30 seconds. Ctrl+C to stop.")
-    log.info("Loaded %d schedule(s).", len(load_schedules()))
+    log.info("[DAEMON] Scheduler running (legacy mode). Prefer cron via cron_manager.py.")
+    log.info("[DAEMON] Loaded %d schedule(s). Checking every 30 s.", len(load_schedules()))
 
     try:
         while True:
             now_minute = datetime.now().strftime("%H:%M")
-            schedules = load_schedules()  # reload each loop — picks up edits live
+            schedules  = load_schedules()        # reload each loop — picks up live edits
+            ac         = _read_ac_state()        # reload each loop — picks up setting changes
 
             for sid, s in schedules.items():
                 fire_key = f"{now_minute}_{sid}"
                 if should_fire(s) and fire_key not in fired_this_minute:
-                    log.info("Firing schedule: %s → %s", sid, s["action"].upper())
+                    log.info("[DAEMON] Firing: %s → %s  temp=%d mode=%s fan=%s",
+                             sid, s["action"].upper(),
+                             ac.get("temp", 22), ac.get("mode", "cool"), ac.get("fan", "auto"))
                     try:
-                        controller.send(s["action"], device_index)
+                        controller.send(
+                            s["action"], device_index,
+                            temp=ac.get("temp", 22),
+                            mode=ac.get("mode", "cool"),
+                            fan=ac.get("fan",  "auto"),
+                        )
                         fired_this_minute.add(fire_key)
                     except Exception as e:
-                        log.error("Failed to send command: %s", e)
+                        log.error("[DAEMON] Send failed: %s", e)
 
-            # Clean fired set when minute changes
-            if len(fired_this_minute) > 0:
-                keys_to_remove = {k for k in fired_this_minute
-                                  if not k.startswith(now_minute)}
-                fired_this_minute -= keys_to_remove
+            # Clear stale fired keys when the minute changes
+            if fired_this_minute:
+                fired_this_minute -= {
+                    k for k in fired_this_minute if not k.startswith(now_minute)
+                }
 
             time.sleep(30)
 
     except KeyboardInterrupt:
-        log.info("Daemon stopped.")
+        log.info("[DAEMON] Stopped by user.")
     finally:
         controller.disconnect()
 
@@ -334,6 +416,19 @@ def main() -> None:
                         help="Password (for --setup)")
     parser.add_argument("--device",   type=int, default=0,
                         help="Device index if you have multiple ACs (default: 0)")
+    # Full AC state for --send
+    parser.add_argument("--temp",        type=int, default=22)
+    parser.add_argument("--mode",        default="cool",
+                        choices=["auto", "cool", "dry", "fan"])
+    parser.add_argument("--fan",         default="auto",
+                        choices=["auto", "quiet", "low", "medium", "high"])
+    parser.add_argument("--swing-v",     type=lambda x: x == "1", default=True)
+    parser.add_argument("--swing-h",     type=lambda x: x == "1", default=False)
+    parser.add_argument("--swing-angle", type=int, default=3)
+    parser.add_argument("--eco",         type=lambda x: x == "1", default=False)
+    parser.add_argument("--powerful",    type=lambda x: x == "1", default=False)
+    parser.add_argument("--quiet",       type=lambda x: x == "1", default=False)
+    parser.add_argument("--nanoe",       type=lambda x: x == "1", default=False)
 
     args = parser.parse_args()
 
@@ -360,7 +455,14 @@ def main() -> None:
         session = load_session()
         ctrl = MiraieController(session)
         ctrl.connect()
-        ctrl.send(args.send, args.device)
+        ctrl.send(
+            args.send, args.device,
+            temp=args.temp, mode=args.mode, fan=args.fan,
+            swing_v=args.swing_v, swing_h=args.swing_h,
+            swing_angle=args.swing_angle,
+            eco=args.eco, powerful=args.powerful,
+            quiet=args.quiet, nanoe=args.nanoe,
+        )
         time.sleep(1)
         ctrl.disconnect()
 

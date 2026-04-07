@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SYS_AC_v2.0 | TERMINAL CONTROL</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        bg:    "#000000",
+        surf0: "#0e0e0e",
+        surf1: "#131313",
+        surf2: "#191919",
+        surf3: "#1f1f1f",
+        surf4: "#262626",
+        pri:   "#8eff71",
+        sec:   "#00fbfb",
+        ter:   "#88f6ff",
+        err:   "#ff7351",
+        mute:  "#484848",
+      },
+      fontFamily: { sans: ["Space Grotesk", "system-ui"] },
+      borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem" }
+    }
+  }
+}
+</script>
+
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Space Grotesk", system-ui; background: #000; color: #fff; }
+  .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; line-height:1; vertical-align:middle; }
+  [x-cloak] { display:none !important; }
+
+  /* ── Glow utilities ── */
+  .glow-pri { box-shadow: 0 0 10px rgba(142,255,113,.25); }
+  .glow-sec { box-shadow: 0 0 10px rgba(0,251,251,.20); }
+  .glow-err { box-shadow: 0 0 10px rgba(255,115,81,.20); }
+  .ring-pri { outline: 1px solid rgba(142,255,113,.5); }
+
+  /* ── Control button base ── */
+  .ctrl-btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: .35rem .55rem; font-size: .65rem; font-weight: 700;
+    letter-spacing: .07em; cursor: pointer; border: 1px solid transparent;
+    background: #1f1f1f; color: rgba(255,255,255,.35);
+    transition: all .15s ease;
+  }
+  .ctrl-btn:hover   { color: #fff; border-color: #484848; }
+  .ctrl-btn.active  { background: rgba(142,255,113,.1); color: #8eff71; border-color: rgba(142,255,113,.4); box-shadow: 0 0 8px rgba(142,255,113,.15); }
+  .ctrl-btn.active-sec { background: rgba(0,251,251,.1); color: #00fbfb; border-color: rgba(0,251,251,.4); box-shadow: 0 0 8px rgba(0,251,251,.15); }
+  .ctrl-btn.active-ter { background: rgba(136,246,255,.08); color: #88f6ff; border-color: rgba(136,246,255,.3); }
+  .ctrl-btn.active-err { background: rgba(255,115,81,.1); color: #ff7351; border-color: rgba(255,115,81,.4); }
+  .ctrl-btn:disabled  { opacity: .3; cursor: not-allowed; pointer-events: none; }
+
+  /* ── Section label ── */
+  .sec-label { font-size: .6rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.25); margin-bottom: .4rem; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+  /* ── CRT overlay ── */
+  .crt { position: fixed; inset: 0; pointer-events: none; z-index: 100;
+         background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.5) 100%); }
+
+  /* ── Input ── */
+  .inp { background: #1f1f1f; border: 1px solid #333; color: #fff;
+         font-family: "Space Grotesk"; font-size: .75rem; padding: .3rem .5rem; width: 100%;
+         outline: none; transition: border-color .15s; }
+  .inp:focus { border-color: rgba(142,255,113,.5); }
+  input[type=time] { color-scheme: dark; }
+  input[type=number]::-webkit-inner-spin-button { opacity: .3; }
+
+  /* ── Power arc SVG ── */
+  circle.arc-track { stroke: rgba(255,255,255,.05); }
+  circle.arc-fill  { transition: stroke-dashoffset .5s cubic-bezier(.4,0,.2,1), stroke .3s ease; }
+
+  /* ── Pulsing dot ── */
+  .pulse-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .pulse-on  { background: #8eff71; animation: pulse-glow 2s infinite; }
+  .pulse-off { background: #484848; }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(142,255,113,.5); }
+    50%      { box-shadow: 0 0 0 4px rgba(142,255,113,0); }
+  }
+
+  /* ── Spinner ── */
+  .spinner { width:12px; height:12px; border:1.5px solid rgba(255,255,255,.15); border-top-color:#8eff71; border-radius:50%; animation:spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<body class="bg-bg overflow-hidden flex flex-col h-screen"
+      x-data="acDash()" x-init="init()" x-cloak>
+
+<div class="crt"></div>
+
+<!-- ══ ADD SCHEDULE MODAL ═══════════════════════════════════════════════════ -->
+<div x-show="showSchedModal"
+     class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+     @click.self="showSchedModal=false">
+  <div class="bg-surf1 p-5 w-full max-w-sm mx-4 border border-white/5 space-y-3">
+    <div class="flex justify-between items-center">
+      <span class="sec-label" style="margin:0">NEW_SCHEDULE</span>
+      <button @click="showSchedModal=false" class="text-white/20 hover:text-white material-symbols-outlined text-sm">close</button>
+    </div>
+    <div>
+      <div class="sec-label">TIME</div>
+      <input type="time" step="300" x-model="newSched.time" class="inp"/>
+    </div>
+    <div>
+      <div class="sec-label">ACTION</div>
+      <div class="grid grid-cols-2 gap-2">
+        <button @click="newSched.action='on'"  class="ctrl-btn py-2" :class="newSched.action==='on'  ? 'active' : ''">TURN ON</button>
+        <button @click="newSched.action='off'" class="ctrl-btn py-2" :class="newSched.action==='off' ? 'active-err' : ''">TURN OFF</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">REPEAT</div>
+      <div class="grid grid-cols-7 gap-1">
+        <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="d">
+          <button @click="toggleSchedDay(d)" class="ctrl-btn py-1.5"
+                  :class="newSched.days.includes(d) ? 'active-sec' : ''"
+                  x-text="d"></button>
+        </template>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 pt-1">
+      <button @click="showSchedModal=false" class="ctrl-btn py-2.5">CANCEL</button>
+      <button @click="saveSchedule()" :disabled="loading"
+              class="ctrl-btn active py-2.5 flex items-center justify-center gap-1.5">
+        <span x-show="loading" class="spinner"></span>
+        <span x-text="loading ? 'APPLYING…' : 'APPLY_TO_CRON'"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOP BAR ═══════════════════════════════════════════════════════════════ -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-4 h-11
+               bg-black border-b border-white/5 font-sans tracking-tight text-[11px]">
+  <div class="flex items-center gap-5">
+    <span class="text-pri font-bold tracking-widest text-sm">SYS_AC</span>
+    <span class="text-white/20 hidden md:block">v2.0 · SECTOR_G7</span>
+  </div>
+  <div class="flex items-center gap-5">
+    <span class="font-mono text-[10px] text-white/20" x-text="clockStr"></span>
+    <!-- live state badges -->
+    <div class="hidden md:flex items-center gap-3 text-[10px]">
+      <span class="text-white/25" x-text="mode.toUpperCase()"></span>
+      <span class="font-mono" :class="power ? 'text-pri' : 'text-white/20'" x-text="temp + '°'"></span>
+      <span class="text-white/25" x-text="fan.toUpperCase()"></span>
+    </div>
+    <!-- connection + power -->
+    <div class="flex items-center gap-2">
+      <div class="pulse-dot" :class="online ? 'pulse-on' : 'pulse-off'"></div>
+      <button @click="togglePower()" :disabled="loading"
+              class="material-symbols-outlined text-base transition-colors disabled:opacity-30"
+              :class="power ? 'text-pri' : 'text-white/25'"
+              style="font-variation-settings:'FILL' 1">power_settings_new</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ SIDEBAR (desktop) ═════════════════════════════════════════════════════ -->
+<aside class="fixed left-0 top-11 bottom-0 w-56 bg-black border-r border-white/5
+              hidden md:flex flex-col z-40">
+  <div class="px-5 py-5 flex items-center gap-3 border-b border-white/5">
+    <div class="w-7 h-7 bg-surf4 flex items-center justify-center">
+      <span class="material-symbols-outlined text-sec text-base">ac_unit</span>
+    </div>
+    <div>
+      <div class="text-sec text-[11px] font-bold tracking-widest">MIRAIE</div>
+      <div class="text-white/20 text-[9px]" x-text="deviceName || 'NOT_CONFIGURED'"></div>
+    </div>
+  </div>
+
+  <nav class="flex-1 py-3 text-[10px] uppercase tracking-widest">
+    <div class="px-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-pri bg-pri/10 border-r-2 border-pri" href="#">
+        <span class="material-symbols-outlined text-sm">dashboard</span> DASHBOARD</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="#">
+        <span class="material-symbols-outlined text-sm">receipt_long</span> LOGS</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="#">
+        <span class="material-symbols-outlined text-sm">timer</span> SCHEDULES</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/legacy">
+        <span class="material-symbols-outlined text-sm">settings</span> LEGACY</a>
+    </div>
+  </nav>
+
+  <div class="p-4 border-t border-white/5 text-[9px] space-y-2">
+    <div class="flex items-center justify-between">
+      <span class="text-white/20 uppercase tracking-widest">DEVICE</span>
+      <div class="flex items-center gap-1.5">
+        <div class="pulse-dot" :class="online ? 'pulse-on' : 'pulse-off'"></div>
+        <span :class="online ? 'text-pri' : 'text-white/20'"
+              x-text="online ? 'ONLINE' : 'OFFLINE'"></span>
+      </div>
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-white/20 uppercase tracking-widest">CRON</span>
+      <span class="font-mono" :class="cronSynced ? 'text-pri' : 'text-white/20'"
+            x-text="cronJobs + ' JOB' + (cronJobs !== 1 ? 'S' : '')"></span>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════════════ -->
+<main class="mt-11 md:ml-56 flex-1 overflow-y-auto bg-black p-3 md:p-4
+             flex flex-col gap-3 pb-20 md:pb-4">
+
+  <!-- ── METRIC ROW ──────────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+    <div class="bg-surf1 p-2.5 border-l-2 border-pri/40">
+      <div class="text-[9px] text-pri uppercase tracking-widest">Set_Point</div>
+      <div class="text-xl font-bold mt-0.5">
+        <span x-text="temp" :class="power ? 'text-white' : 'text-white/30'"></span>
+        <span class="text-xs text-pri/50">°C</span>
+      </div>
+    </div>
+    <div class="bg-surf1 p-2.5 border-l-2 border-sec/40">
+      <div class="text-[9px] text-sec uppercase tracking-widest">Mode</div>
+      <div class="text-xl font-bold mt-0.5">
+        <span x-text="mode.toUpperCase()" :class="power ? 'text-white' : 'text-white/30'"></span>
+        <span class="text-[9px] text-sec/50 ml-1" x-text="fan.toUpperCase()"></span>
+      </div>
+    </div>
+    <div class="bg-surf1 p-2.5 border-l-2 border-ter/40">
+      <div class="text-[9px] text-ter uppercase tracking-widest">Power</div>
+      <div class="text-xl font-bold mt-0.5" :class="power ? 'text-pri' : 'text-white/30'"
+           x-text="power ? 'ONLINE' : 'STANDBY'"></div>
+    </div>
+    <div class="bg-surf1 p-2.5 border-l-2 border-err/30">
+      <div class="text-[9px] text-err uppercase tracking-widest">Cost_Est</div>
+      <div class="text-xl font-bold mt-0.5 text-white">
+        ₹<span x-text="costHr"></span>
+        <span class="text-[9px] text-err/50">/HR</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN CONTROL GRID ───────────────────────────────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+
+    <!-- ── TEMPERATURE / POWER PANEL ──────────────────────────────────────── -->
+    <div class="lg:col-span-4 bg-surf1 p-5 flex flex-col items-center justify-between min-h-[300px]">
+      <div class="text-[9px] text-pri/30 uppercase tracking-widest w-full">Target_Control</div>
+
+      <!-- Arc gauge -->
+      <div class="relative w-44 h-44 flex items-center justify-center mt-2">
+        <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 176 176">
+          <circle class="arc-track" cx="88" cy="88" fill="none" r="80" stroke="currentColor" stroke-width="2"/>
+          <circle class="arc-fill" cx="88" cy="88" fill="none" r="80"
+            :stroke="power ? '#8eff71' : '#333'"
+            stroke-dasharray="502"
+            :stroke-dashoffset="arcOffset"
+            stroke-width="5" stroke-linecap="round"/>
+        </svg>
+        <div class="z-10 text-center select-none">
+          <div class="text-5xl font-bold leading-none tracking-tight transition-colors duration-300"
+               :class="power ? 'text-white' : 'text-white/25'" x-text="temp"></div>
+          <div class="text-[10px] uppercase tracking-widest mt-0.5 transition-colors duration-300"
+               :class="power ? 'text-pri font-bold' : 'text-white/15'">celsius</div>
+        </div>
+      </div>
+
+      <!-- +/- -->
+      <div class="flex gap-6 my-1">
+        <button @click="adjTemp(-1)" :disabled="loading"
+                class="w-10 h-10 bg-surf3 border border-white/5 flex items-center justify-center
+                       text-pri hover:bg-pri/10 hover:border-pri/30 active:scale-95 transition-all disabled:opacity-30">
+          <span class="material-symbols-outlined text-base">remove</span>
+        </button>
+        <button @click="adjTemp(1)" :disabled="loading"
+                class="w-10 h-10 bg-surf3 border border-white/5 flex items-center justify-center
+                       text-pri hover:bg-pri/10 hover:border-pri/30 active:scale-95 transition-all disabled:opacity-30">
+          <span class="material-symbols-outlined text-base">add</span>
+        </button>
+      </div>
+
+      <!-- Power button -->
+      <button @click="togglePower()" :disabled="loading"
+              class="w-full py-3 font-bold tracking-widest text-[11px] uppercase
+                     flex items-center justify-center gap-2
+                     active:scale-[.98] transition-all duration-200 disabled:opacity-50"
+              :class="power
+                ? 'bg-pri text-black shadow-[0_0_18px_rgba(142,255,113,.3)]'
+                : 'bg-surf3 text-white/30 hover:bg-surf4 hover:text-white/60'">
+        <span x-show="loading" class="spinner"></span>
+        <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1">power_settings_new</span>
+        <span x-text="loading ? '…' : (power ? 'SYSTEM_ONLINE' : 'SYSTEM_OFFLINE')"></span>
+      </button>
+    </div>
+
+    <!-- ── CONTROLS PANEL ──────────────────────────────────────────────────── -->
+    <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+
+      <!-- LEFT HALF: Mode + Fan + Airflow -->
+      <div class="bg-surf1 p-4 space-y-4">
+
+        <!-- Mode -->
+        <div>
+          <div class="sec-label">System_Mode</div>
+          <div class="grid grid-cols-4 gap-1.5">
+            <template x-for="m in ['cool','dry','fan','auto']" :key="m">
+              <button @click="setMode(m)" :disabled="!power || loading"
+                      class="ctrl-btn py-2.5" :class="mode===m ? 'active-sec' : ''"
+                      x-text="m.toUpperCase()"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Fan -->
+        <div>
+          <div class="sec-label">Fan_Velocity</div>
+          <div class="grid grid-cols-4 gap-1.5">
+            <template x-for="[lbl,val] in [['AUTO','auto'],['LOW','low'],['MED','medium'],['HIGH','high']]" :key="val">
+              <button @click="setFan(val)" :disabled="!power || loading"
+                      class="ctrl-btn py-2.5" :class="fan===val ? 'active-sec' : ''"
+                      x-text="lbl"></button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Airflow -->
+        <div>
+          <div class="sec-label">Airflow_Control</div>
+          <!-- Swing toggles -->
+          <div class="grid grid-cols-2 gap-1.5 mb-2">
+            <button @click="toggleSwing('v')"
+                    class="ctrl-btn py-2.5 gap-1.5"
+                    :class="swing_v ? 'active-ter' : ''">
+              <span class="material-symbols-outlined text-sm">swap_vert</span>
+              VERT
+              <span class="text-[9px] ml-auto" x-text="swing_v ? 'AUTO' : 'FIX'"></span>
+            </button>
+            <button @click="toggleSwing('h')"
+                    class="ctrl-btn py-2.5 gap-1.5"
+                    :class="swing_h ? 'active-ter' : ''">
+              <span class="material-symbols-outlined text-sm">swap_horiz</span>
+              HORIZ
+              <span class="text-[9px] ml-auto" x-text="swing_h ? 'AUTO' : 'OFF'"></span>
+            </button>
+          </div>
+          <!-- Fixed angle selector (only shown when v-swing is off) -->
+          <div x-show="!swing_v" class="space-y-1">
+            <div class="text-[9px] text-white/20 uppercase tracking-widest">Fixed Position</div>
+            <div class="grid grid-cols-5 gap-1">
+              <template x-for="a in [1,2,3,4,5]" :key="a">
+                <button @click="setAngle(a)" :disabled="!power || loading"
+                        class="ctrl-btn py-2" :class="swing_angle===a ? 'active' : ''"
+                        x-text="a"></button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT HALF: Advanced + Profiles -->
+      <div class="bg-surf1 p-4 space-y-4">
+
+        <!-- Advanced Matrix -->
+        <div>
+          <div class="sec-label">Advanced_Matrix</div>
+          <div class="grid grid-cols-5 gap-1.5 mb-1.5">
+            <button @click="setAdv('eco')" :disabled="!power || loading"
+                    class="ctrl-btn flex-col py-3 gap-1" :class="eco ? 'active' : ''">
+              <span class="material-symbols-outlined text-sm">eco</span>
+              <span style="font-size:.55rem">ECO</span>
+            </button>
+            <button @click="setAdv('powerful')" :disabled="!power || loading"
+                    class="ctrl-btn flex-col py-3 gap-1" :class="powerful ? 'active-err' : ''">
+              <span class="material-symbols-outlined text-sm">bolt</span>
+              <span style="font-size:.55rem">TURBO</span>
+            </button>
+            <button @click="setAdv('quiet')" :disabled="!power || loading"
+                    class="ctrl-btn flex-col py-3 gap-1" :class="quiet ? 'active-ter' : ''">
+              <span class="material-symbols-outlined text-sm">volume_off</span>
+              <span style="font-size:.55rem">QUIET</span>
+            </button>
+            <button @click="setAdv('nanoe')"
+                    class="ctrl-btn flex-col py-3 gap-1" :class="nanoe ? 'active-sec' : ''">
+              <span class="material-symbols-outlined text-sm"
+                    :style="nanoe ? 'font-variation-settings:FILL 1' : ''">cleaning_services</span>
+              <span style="font-size:.55rem">NANOE</span>
+            </button>
+            <button @click="setAdv('iauto')"
+                    class="ctrl-btn flex-col py-3 gap-1" :class="iauto ? 'active' : ''">
+              <span class="material-symbols-outlined text-sm">smart_toy</span>
+              <span style="font-size:.55rem">iAUTO</span>
+            </button>
+          </div>
+          <!-- Mutually exclusive note -->
+          <div class="flex gap-1 flex-wrap">
+            <span class="text-[9px] text-white/15">Active:</span>
+            <span x-show="eco"      class="text-[9px] text-pri">ECO</span>
+            <span x-show="powerful" class="text-[9px] text-err">TURBO</span>
+            <span x-show="quiet"    class="text-[9px] text-ter">QUIET</span>
+            <span x-show="nanoe"    class="text-[9px] text-sec">NANOE</span>
+            <span x-show="iauto"    class="text-[9px] text-pri">iAUTO</span>
+            <span x-show="!eco && !powerful && !quiet && !nanoe && !iauto"
+                  class="text-[9px] text-white/15">STANDARD_MODE</span>
+          </div>
+        </div>
+
+        <!-- Profiles -->
+        <div>
+          <div class="sec-label">Operational_Profiles</div>
+          <div class="space-y-1.5">
+            <template x-for="p in profiles" :key="p.name">
+              <button @click="applyProfile(p)"
+                      class="ctrl-btn w-full px-3 py-2.5 flex items-center gap-2.5 text-left"
+                      :class="activeProfile===p.name ? 'active-sec' : ''">
+                <span class="material-symbols-outlined text-sm flex-shrink-0"
+                      :class="activeProfile===p.name ? 'text-sec' : 'text-sec/30'"
+                      x-text="p.icon || 'settings'"></span>
+                <div>
+                  <div class="text-[10px] font-bold uppercase" x-text="p.name"></div>
+                  <div class="text-[8px] text-white/25"
+                       x-text="p.temp+'°C · '+p.mode.toUpperCase()+' · '+p.fan.toUpperCase()+'_FAN'"></div>
+                </div>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM ROW: Timer + Cost + Schedules ────────────────────────────── -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2.5">
+
+    <!-- ── TIMER ON ─────────────────────────────────────────────────────── -->
+    <div class="bg-surf1 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="sec-label" style="margin:0">Timer_ON</div>
+        <div class="flex items-center gap-1.5">
+          <div class="pulse-dot" :class="timers.on.active ? 'pulse-on' : 'pulse-off'"></div>
+          <span class="text-[9px] font-mono" :class="timers.on.active ? 'text-pri' : 'text-white/20'"
+                x-text="timers.on.active ? fmtCountdown(timers.on.remainS) : '--:--:--'"></span>
+        </div>
+      </div>
+      <!-- Duration pickers -->
+      <div class="grid grid-cols-2 gap-1.5 mb-2">
+        <div>
+          <div class="text-[9px] text-white/20 mb-1">HOURS</div>
+          <div class="flex items-center gap-1">
+            <button @click="tOn.h = Math.max(0, tOn.h-1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">−</button>
+            <div class="text-center font-mono text-sm font-bold flex-1" x-text="String(tOn.h).padStart(2,'0')"></div>
+            <button @click="tOn.h = Math.min(23, tOn.h+1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">+</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-[9px] text-white/20 mb-1">MINUTES</div>
+          <div class="flex items-center gap-1">
+            <button @click="tOn.m = Math.max(0, tOn.m-5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">−</button>
+            <div class="text-center font-mono text-sm font-bold flex-1" x-text="String(tOn.m).padStart(2,'0')"></div>
+            <button @click="tOn.m = Math.min(55, tOn.m+5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button @click="setTimer('on')" :disabled="tOn.h===0 && tOn.m===0"
+                class="ctrl-btn active py-2 text-[10px] disabled:opacity-30">SET_ON</button>
+        <button @click="cancelTimer('on')" :disabled="!timers.on.active"
+                class="ctrl-btn active-err py-2 text-[10px] disabled:opacity-30">CANCEL</button>
+      </div>
+    </div>
+
+    <!-- ── TIMER OFF ────────────────────────────────────────────────────── -->
+    <div class="bg-surf1 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="sec-label" style="margin:0">Timer_OFF</div>
+        <div class="flex items-center gap-1.5">
+          <div class="pulse-dot" :class="timers.off.active ? 'pulse-on' : 'pulse-off'"
+               style="background: timers.off.active ? '#ff7351' : '#484848'"></div>
+          <span class="text-[9px] font-mono" :class="timers.off.active ? 'text-err' : 'text-white/20'"
+                x-text="timers.off.active ? fmtCountdown(timers.off.remainS) : '--:--:--'"></span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 mb-2">
+        <div>
+          <div class="text-[9px] text-white/20 mb-1">HOURS</div>
+          <div class="flex items-center gap-1">
+            <button @click="tOff.h = Math.max(0, tOff.h-1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">−</button>
+            <div class="text-center font-mono text-sm font-bold flex-1" x-text="String(tOff.h).padStart(2,'0')"></div>
+            <button @click="tOff.h = Math.min(23, tOff.h+1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">+</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-[9px] text-white/20 mb-1">MINUTES</div>
+          <div class="flex items-center gap-1">
+            <button @click="tOff.m = Math.max(0, tOff.m-5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">−</button>
+            <div class="text-center font-mono text-sm font-bold flex-1" x-text="String(tOff.m).padStart(2,'0')"></div>
+            <button @click="tOff.m = Math.min(55, tOff.m+5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light flex-shrink-0">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button @click="setTimer('off')" :disabled="tOff.h===0 && tOff.m===0"
+                class="ctrl-btn active-err py-2 text-[10px] disabled:opacity-30">SET_OFF</button>
+        <button @click="cancelTimer('off')" :disabled="!timers.off.active"
+                class="ctrl-btn py-2 text-[10px] disabled:opacity-30">CANCEL</button>
+      </div>
+    </div>
+
+    <!-- ── SLEEP TIMER ──────────────────────────────────────────────────── -->
+    <div class="bg-surf1 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="sec-label" style="margin:0">Sleep_Timer</div>
+        <div class="flex items-center gap-1.5">
+          <div class="pulse-dot" :class="timers.sleep.active ? 'pulse-on' : 'pulse-off'"
+               style="animation: none"
+               :style="timers.sleep.active ? '' : 'background:#484848'"></div>
+          <span class="text-[9px] font-mono text-white/20"
+                x-text="timers.sleep.active ? 'STEP_'+timers.sleep.steps : 'INACTIVE'"></span>
+        </div>
+      </div>
+      <div class="text-[9px] text-white/20 leading-relaxed mb-3">
+        Gradually raises temp +1°C every 30 min until 30°C. First step fires after delay.
+      </div>
+      <div>
+        <div class="text-[9px] text-white/20 mb-1">DELAY BEFORE FIRST STEP</div>
+        <div class="flex items-center gap-2 mb-3">
+          <div class="flex items-center gap-1">
+            <button @click="tSlp.h = Math.max(0, tSlp.h-1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light">−</button>
+            <div class="text-center font-mono text-xs font-bold w-6" x-text="String(tSlp.h).padStart(2,'0')+'h'"></div>
+            <button @click="tSlp.h = Math.min(8, tSlp.h+1)"
+                    class="ctrl-btn w-6 h-6 text-base font-light">+</button>
+          </div>
+          <div class="flex items-center gap-1">
+            <button @click="tSlp.m = Math.max(0, tSlp.m-5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light">−</button>
+            <div class="text-center font-mono text-xs font-bold w-6" x-text="String(tSlp.m).padStart(2,'0')+'m'"></div>
+            <button @click="tSlp.m = Math.min(55, tSlp.m+5)"
+                    class="ctrl-btn w-6 h-6 text-base font-light">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button @click="setTimer('sleep')" :disabled="tSlp.h===0 && tSlp.m===0"
+                class="ctrl-btn active-ter py-2 text-[10px] disabled:opacity-30">ACTIVATE</button>
+        <button @click="cancelTimer('sleep')" :disabled="!timers.sleep.active"
+                class="ctrl-btn active-err py-2 text-[10px] disabled:opacity-30">CANCEL</button>
+      </div>
+    </div>
+
+    <!-- ── COST + SCHEDULES ─────────────────────────────────────────────── -->
+    <div class="bg-surf1 p-4 space-y-4">
+
+      <!-- Cost calculator -->
+      <div>
+        <div class="sec-label">Cost_Matrix</div>
+        <div class="space-y-1.5 mb-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] text-white/25">WATTAGE</span>
+            <div class="flex items-center gap-1">
+              <input type="number" x-model.number="calc.w" min="100" max="10000" step="100"
+                     class="inp text-right w-16 text-[11px] font-mono"/>
+              <span class="text-[9px] text-white/15">W</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] text-white/25">₹ / KWH</span>
+            <div class="flex items-center gap-1">
+              <input type="number" x-model.number="calc.r" min="0.5" max="50" step="0.5"
+                     class="inp text-right w-16 text-[11px] font-mono"/>
+              <span class="text-[9px] text-white/15">₹</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] text-white/25">HRS / DAY</span>
+            <div class="flex items-center gap-1">
+              <input type="number" x-model.number="calc.h" min="1" max="24" step="0.5"
+                     class="inp text-right w-12 text-[11px] font-mono"/>
+              <span class="text-[9px] text-white/15">H</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-center">
+          <div class="bg-surf2 py-1.5">
+            <div class="text-[8px] text-white/20">HR</div>
+            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costHr"></div>
+          </div>
+          <div class="bg-surf2 py-1.5">
+            <div class="text-[8px] text-white/20">DAY</div>
+            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costDay"></div>
+          </div>
+          <div class="bg-surf2 py-1.5">
+            <div class="text-[8px] text-white/20">MO</div>
+            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costMo"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedules mini-manager -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="sec-label" style="margin:0">Chronos</div>
+          <div class="flex items-center gap-2">
+            <span class="text-[9px] font-mono"
+                  :class="cronSynced ? 'text-pri' : 'text-white/20'"
+                  x-text="cronJobs+'_CRON'"></span>
+            <button @click="showSchedModal=true"
+                    class="ctrl-btn px-2 py-1 text-[9px]">+ ADD</button>
+          </div>
+        </div>
+        <div class="max-h-24 overflow-y-auto space-y-1">
+          <div x-show="!Object.keys(schedules).length"
+               class="text-[9px] text-white/15 font-mono text-center py-2">NO_SCHEDULES</div>
+          <template x-for="[sid,s] in Object.entries(schedules).sort((a,b)=>a[1].time.localeCompare(b[1].time))" :key="sid">
+            <div class="flex items-center justify-between bg-surf2 px-2 py-1 group">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[11px] font-bold" x-text="s.time"></span>
+                <span class="text-[9px] font-bold"
+                      :class="s.action==='on' ? 'text-pri' : 'text-err'"
+                      x-text="s.action.toUpperCase()"></span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[8px] text-white/15 font-mono"
+                      x-text="s.days.length===7?'ALL':s.days.slice(0,3).join(',')+(s.days.length>3?'…':'')"></span>
+                <button @click="delSchedule(sid)"
+                        class="text-white/10 hover:text-err opacity-0 group-hover:opacity-100 transition-all material-symbols-outlined text-xs">close</button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <button @click="resyncCron()" :disabled="syncing"
+                class="ctrl-btn active mt-2 w-full py-1.5 text-[9px] flex items-center justify-center gap-1">
+          <span class="material-symbols-outlined text-xs" :class="syncing ? 'animate-spin' : ''">sync</span>
+          SYNC_CRON
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TERMINAL LOG ──────────────────────────────────────────────────────── -->
+  <div class="bg-black border border-white/5 p-3 flex-shrink-0">
+    <div class="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+      <div class="flex items-center gap-2 text-[10px] tracking-widest">
+        <div class="pulse-dot pulse-on" style="width:5px;height:5px"></div>
+        <span class="text-pri">LIVE_SYSTEM_LOG</span>
+      </div>
+      <span class="text-[9px] text-white/15">v2.0.0-STABLE</span>
+    </div>
+    <div id="log-el" class="h-20 overflow-y-auto space-y-0.5 font-mono text-[9px]">
+      <template x-for="(e,i) in logs" :key="i">
+        <div>
+          <span class="text-white/15">[<span x-text="e.ts"></span>]</span>
+          <span class="font-bold mx-1" :class="'text-'+e.c" x-text="e.lvl"></span>
+          <span class="text-white/40" x-text="e.msg"></span>
+        </div>
+      </template>
+      <div class="flex items-center gap-1 text-white/15">
+        <span>[<span x-text="clockStr"></span>] &gt;</span>
+        <span class="w-1.5 h-3 bg-pri/40 animate-pulse inline-block"></span>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══ MOBILE NAV ══════════════════════════════════════════════════════════ -->
+<nav class="md:hidden fixed bottom-0 w-full h-14 bg-black border-t border-white/5
+            flex justify-around items-center z-50">
+  <button class="flex flex-col items-center gap-0.5 text-pri">
+    <span class="material-symbols-outlined text-lg">dashboard</span>
+    <span class="text-[7px] font-mono">CTRL</span>
+  </button>
+  <button class="flex flex-col items-center gap-0.5 text-white/30" @click="showSchedModal=true">
+    <span class="material-symbols-outlined text-lg">timer</span>
+    <span class="text-[7px] font-mono">SCHED</span>
+  </button>
+  <!-- FAB -->
+  <div class="-mt-6 w-12 h-12 flex items-center justify-center cursor-pointer
+              active:scale-95 transition-transform shadow-[0_0_16px_rgba(142,255,113,.4)]"
+       :class="power ? 'bg-pri' : 'bg-surf3'"
+       @click="togglePower()">
+    <span class="material-symbols-outlined text-xl"
+          :class="power ? 'text-black' : 'text-white/40'"
+          style="font-variation-settings:'FILL' 1">power_settings_new</span>
+  </div>
+  <button class="flex flex-col items-center gap-0.5 text-white/30">
+    <span class="material-symbols-outlined text-lg">analytics</span>
+    <span class="text-[7px] font-mono">DATA</span>
+  </button>
+  <button class="flex flex-col items-center gap-0.5 text-white/30">
+    <span class="material-symbols-outlined text-lg">history</span>
+    <span class="text-[7px] font-mono">LOGS</span>
+  </button>
+</nav>
+
+<!-- ══ ALPINE COMPONENT ════════════════════════════════════════════════════ -->
+<script>
+function acDash() {
+  return {
+    // ─── AC state ────────────────────────────────────────────────────────────
+    power:       false,
+    temp:        22,
+    mode:        'cool',
+    fan:         'auto',
+    swing_v:     true,
+    swing_h:     false,
+    swing_angle: 3,
+    eco:         false,
+    powerful:    false,
+    quiet:       false,
+    nanoe:       false,
+    iauto:       false,
+
+    // ─── System ──────────────────────────────────────────────────────────────
+    online:        false,
+    deviceName:    null,
+
+    // ─── Profiles ────────────────────────────────────────────────────────────
+    profiles: [
+      { name:'SLEEP',    temp:24, mode:'cool', fan:'low',    icon:'bed'     },
+      { name:'WORK_HUB', temp:22, mode:'cool', fan:'medium', icon:'work'    },
+      { name:'ECO_MAX',  temp:26, mode:'cool', fan:'auto',   icon:'savings' },
+    ],
+    activeProfile: null,
+
+    // ─── Timers ──────────────────────────────────────────────────────────────
+    timers: {
+      on:    { active:false, firesAt:null, remainS:0 },
+      off:   { active:false, firesAt:null, remainS:0 },
+      sleep: { active:false, steps:0 },
+    },
+    tOn:  { h:0, m:30 },
+    tOff: { h:0, m:30 },
+    tSlp: { h:0, m:30 },
+
+    // ─── Schedules ───────────────────────────────────────────────────────────
+    schedules:     {},
+    showSchedModal: false,
+    newSched:      { time:'08:00', action:'on', days:['Mo','Tu','We','Th','Fr','Sa','Su'] },
+    cronJobs:      0,
+    cronSynced:    false,
+    syncing:       false,
+
+    // ─── Cost calc ───────────────────────────────────────────────────────────
+    calc: { w:1500, r:8, h:8 },
+
+    // ─── UI ──────────────────────────────────────────────────────────────────
+    loading:    false,
+    logs:       [],
+    clockStr:   '',
+    _sendTimer: null,
+
+    // ─── Computed ────────────────────────────────────────────────────────────
+    get arcOffset() {
+      // r=80, C≈502. 16°→full-empty, 30°→full
+      return (502 * (30 - this.temp) / 14).toFixed(1);
+    },
+    get costHr()  { return ((this.calc.w/1000) * this.calc.r).toFixed(2); },
+    get costDay() { return ((this.calc.w/1000) * this.calc.r * this.calc.h).toFixed(1); },
+    get costMo()  { return Math.round((this.calc.w/1000) * this.calc.r * this.calc.h * 30); },
+
+    // ─── Init ────────────────────────────────────────────────────────────────
+    async init() {
+      this.updateClock();
+      setInterval(() => this.tick(), 1000);
+      await this.fetchState();
+      await this.fetchSchedules();
+      await this.fetchProfiles();
+      await this.fetchTimers();
+      await this.fetchCronStatus();
+      setInterval(() => this.fetchState(),  30000);
+      setInterval(() => this.fetchTimers(), 5000);
+      this.log('INIT', 'BOOT_SEQUENCE_COMPLETE', 'pri');
+      this.log('INFO', 'DASHBOARD_v2.0 READY', 'sec');
+    },
+
+    tick() {
+      this.clockStr = new Date().toLocaleTimeString('en-IN', { hour12:false });
+      // Decrement timer countdowns
+      for (const tid of ['on','off']) {
+        const t = this.timers[tid];
+        if (t.active && t.firesAt) {
+          t.remainS = Math.max(0, Math.round((new Date(t.firesAt) - Date.now()) / 1000));
+          if (t.remainS === 0) { t.active = false; t.firesAt = null; }
+        }
+      }
+    },
+
+    updateClock() { this.clockStr = new Date().toLocaleTimeString('en-IN', { hour12:false }); },
+
+    // ─── API fetches ─────────────────────────────────────────────────────────
+    async fetchState() {
+      try {
+        const d = await this._get('/api/state');
+        this.power       = d.power;
+        this.temp        = d.temp;
+        this.mode        = d.mode;
+        this.fan         = d.fan;
+        this.swing_v     = d.swing_v     ?? true;
+        this.swing_h     = d.swing_h     ?? false;
+        this.swing_angle = d.swing_angle ?? 3;
+        this.eco         = d.eco         ?? false;
+        this.powerful    = d.powerful    ?? false;
+        this.quiet       = d.quiet       ?? false;
+        this.nanoe       = d.nanoe       ?? false;
+        this.iauto       = d.iauto       ?? false;
+        this.online      = d.online;
+        this.deviceName  = d.device;
+      } catch { this.online = false; }
+    },
+
+    async fetchSchedules() {
+      try {
+        const d = await this._get('/api/schedules');
+        this.schedules = d.schedules || {};
+      } catch {}
+    },
+
+    async fetchProfiles() {
+      try {
+        const d = await this._get('/api/profiles');
+        if (d.profiles?.length) this.profiles = d.profiles;
+      } catch {}
+    },
+
+    async fetchTimers() {
+      try {
+        const d = await this._get('/api/timer');
+        for (const tid of ['on','off']) {
+          if (d[tid]) {
+            this.timers[tid].active  = d[tid].active;
+            this.timers[tid].firesAt = d[tid].fires_at || null;
+            this.timers[tid].remainS = d[tid].remaining_s || 0;
+          }
+        }
+        if (d.sleep) {
+          this.timers.sleep.active = d.sleep.active;
+          this.timers.sleep.steps  = d.sleep.steps || 0;
+        }
+      } catch {}
+    },
+
+    async fetchCronStatus() {
+      try {
+        const d = await this._get('/api/schedules/crontab');
+        if (d.ok) { this.cronJobs = d.jobs; this.cronSynced = true; }
+      } catch {}
+    },
+
+    // ─── AC Controls ─────────────────────────────────────────────────────────
+    async togglePower() {
+      this.power = !this.power;
+      this.activeProfile = null;
+      await this.sendControl();
+    },
+
+    setMode(m) {
+      if (!this.power || this.loading) return;
+      this.mode = m; this.activeProfile = null;
+      this.debounce();
+    },
+
+    setFan(f) {
+      if (!this.power || this.loading) return;
+      this.fan = f; this.activeProfile = null;
+      this.debounce();
+    },
+
+    adjTemp(d) {
+      const nxt = Math.max(16, Math.min(30, this.temp + d));
+      if (nxt === this.temp) return;
+      this.temp = nxt; this.activeProfile = null;
+      if (this.power) this.debounce();
+    },
+
+    toggleSwing(axis) {
+      if (axis === 'v') { this.swing_v = !this.swing_v; }
+      else              { this.swing_h = !this.swing_h; }
+      if (this.power) this.debounce();
+    },
+
+    setAngle(a) {
+      this.swing_angle = a;
+      if (this.power) this.debounce();
+    },
+
+    setAdv(key) {
+      // Eco ↔ powerful are mutually exclusive
+      if (key === 'powerful' && !this[key]) this.eco     = false;
+      if (key === 'eco'      && !this[key]) this.powerful = false;
+      this[key] = !this[key];
+      if (this.power) this.debounce();
+      else if (key === 'nanoe' || key === 'iauto') { /* local-only toggles when off */ }
+    },
+
+    async applyProfile(p) {
+      this.activeProfile = p.name;
+      this.temp = p.temp; this.mode = p.mode; this.fan = p.fan;
+      this.log('USER', `PROFILE [${p.name}] APPLIED`, 'sec');
+      if (this.power) await this.sendControl();
+    },
+
+    debounce() {
+      clearTimeout(this._sendTimer);
+      this._sendTimer = setTimeout(() => this.sendControl(), 350);
+    },
+
+    async sendControl() {
+      const payload = {
+        power: this.power, temp: this.temp, mode: this.mode, fan: this.fan,
+        swing_v: this.swing_v, swing_h: this.swing_h, swing_angle: this.swing_angle,
+        eco: this.eco, powerful: this.powerful, quiet: this.quiet,
+        nanoe: this.nanoe, iauto: this.iauto,
+      };
+      this.loading = true;
+      try {
+        const d = await this._post('/api/control', payload);
+        // Sync state from server response
+        Object.assign(this, {
+          power: d.power, temp: d.temp, mode: d.mode, fan: d.fan,
+          eco: d.eco??false, powerful: d.powerful??false,
+          quiet: d.quiet??false, nanoe: d.nanoe??false,
+        });
+        const act = d.power ? 'ON' : 'OFF';
+        this.log('EXEC', `PWR:${act} T:${d.temp}° M:${d.mode.toUpperCase()} F:${d.fan.toUpperCase()}`, 'pri');
+      } catch(e) {
+        this.log('ERR', e.message, 'err');
+        await this.fetchState();
+      } finally { this.loading = false; }
+    },
+
+    // ─── Timers ──────────────────────────────────────────────────────────────
+    async setTimer(tid) {
+      const src = tid==='on' ? this.tOn : tid==='off' ? this.tOff : this.tSlp;
+      const hours = src.h, minutes = src.m;
+      try {
+        const d = await this._post('/api/timer', { timer_id:tid, hours, minutes });
+        if (d.ok) {
+          if (tid !== 'sleep') {
+            this.timers[tid].active  = true;
+            this.timers[tid].firesAt = d.fires_at;
+            this.timers[tid].remainS = hours*3600 + minutes*60;
+          } else {
+            this.timers.sleep.active = true;
+            this.timers.sleep.steps  = 0;
+          }
+          const label = `${tid.toUpperCase()}_TIMER SET — fires in ${hours}h ${minutes}m`;
+          this.log('CRON', label, 'ter');
+        }
+      } catch(e) { this.log('ERR', 'TIMER_FAILED: '+e.message, 'err'); }
+    },
+
+    async cancelTimer(tid) {
+      try {
+        await fetch(`/api/timer/${encodeURIComponent(tid)}`, { method:'DELETE' });
+        if (tid === 'sleep') { this.timers.sleep.active = false; }
+        else { this.timers[tid].active = false; this.timers[tid].firesAt = null; }
+        this.log('USER', `TIMER_${tid.toUpperCase()}_CANCELLED`, 'sec');
+      } catch(e) { this.log('ERR', e.message, 'err'); }
+    },
+
+    fmtCountdown(s) {
+      if (!s || s <= 0) return '--:--:--';
+      const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    },
+
+    // ─── Schedules ───────────────────────────────────────────────────────────
+    toggleSchedDay(d) {
+      const i = this.newSched.days.indexOf(d);
+      i>=0 ? this.newSched.days.splice(i,1) : this.newSched.days.push(d);
+    },
+
+    async saveSchedule() {
+      if (this.loading) return;
+      this.loading = true;
+      // Map 2-letter codes → full names for backend
+      const dayMap = {Mo:'Mon',Tu:'Tue',We:'Wed',Th:'Thu',Fr:'Fri',Sa:'Sat',Su:'Sun'};
+      const payload = { ...this.newSched, days: this.newSched.days.map(d => dayMap[d]||d) };
+      try {
+        const d = await this._post('/api/schedules', payload);
+        await this.fetchSchedules();
+        this._applyCron(d);
+        this.showSchedModal = false;
+        this.log('EXEC', `SCHED [${this.newSched.time}_${this.newSched.action.toUpperCase()}] APPLIED_TO_CRON`, 'pri');
+      } catch(e) { this.log('ERR', 'SCHED_SAVE: '+e.message, 'err'); }
+      finally { this.loading = false; }
+    },
+
+    async delSchedule(sid) {
+      try {
+        const d = await fetch(`/api/schedules/${encodeURIComponent(sid)}`, {method:'DELETE'}).then(r=>r.json());
+        delete this.schedules[sid];
+        this.schedules = { ...this.schedules };
+        this._applyCron(d);
+        this.log('USER', `SCHED [${sid.toUpperCase()}] REMOVED`, 'sec');
+      } catch(e) { this.log('ERR', e.message, 'err'); }
+    },
+
+    async resyncCron() {
+      if (this.syncing) return;
+      this.syncing = true;
+      try {
+        const d = await this._post('/api/schedules/sync', {});
+        this._applyCron(d);
+        this.log('CRON', `RESYNC_OK — ${d.jobs} JOB(S) INSTALLED`, 'pri');
+      } catch(e) { this.log('ERR', 'RESYNC: '+e.message, 'err'); }
+      finally { this.syncing = false; }
+    },
+
+    _applyCron(d) {
+      if (d.cron_synced !== undefined) {
+        this.cronSynced = d.cron_synced; this.cronJobs = d.cron_jobs ?? 0;
+      } else if (d.ok !== undefined) {
+        this.cronSynced = d.ok; this.cronJobs = d.jobs ?? 0;
+      }
+    },
+
+    // ─── Utilities ───────────────────────────────────────────────────────────
+    async _get(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP_'+r.status);
+      return r.json();
+    },
+
+    async _post(url, body) {
+      const r = await fetch(url, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error('HTTP_'+r.status);
+      return r.json();
+    },
+
+    log(lvl, msg, c='ter') {
+      this.logs.unshift({ ts:this.clockStr, lvl, msg, c });
+      if (this.logs.length > 60) this.logs.pop();
+      this.$nextTick(() => {
+        const el = document.getElementById('log-el');
+        if (el) el.scrollTop = 0;
+      });
+    },
+  };
+}
+</script>
+
+</body>
+</html>

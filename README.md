@@ -176,3 +176,83 @@ For Termux:Boot auto-start, install the **Termux:Boot** app and add a startup sc
 ## License
 
 MIT
+
+---
+
+## Miraie Module (AC Automation)
+
+The `miraie/` module is a standalone AC control stack with:
+
+- FastAPI dashboard + REST API (`miraie/web.py`)
+- MQTT command delivery (`miraie/miraie_scheduler.py`)
+- Cron sync for recurring schedules (`miraie/cron_manager.py`)
+- Cron-safe command runner (`miraie/send_command.py`)
+
+### Miraie Quick Start
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 miraie/miraie_scheduler.py --setup --mobile "<MOBILE>" --password "<PASSWORD>"
+python3 miraie/web.py
+```
+
+Open `http://localhost:8001`.
+
+### Run Smoke Test
+
+```bash
+python3 miraie/smoke_test.py
+```
+
+This verifies:
+
+- module compilation
+- unit tests
+- API sanity checks with isolated temporary data files
+
+---
+
+## Security Hardening Checklist
+
+Use this before exposing the service over tunnels or internet-facing endpoints.
+
+### Credentials and Secrets
+
+- Never commit mobile/password/session files.
+- Ensure these files remain local only:
+  - `miraie/miraie_session.json`
+  - `miraie/ac_state.json`
+  - `miraie/miraie_schedules.json`
+- Rotate Miraie password if a session file is ever leaked.
+
+### API and Network Exposure
+
+- Keep dashboard bound to trusted networks where possible.
+- Prefer authenticated reverse-proxy access (Cloudflare Access / Tailscale ACLs).
+- Do not expose unauthenticated control APIs directly to public internet.
+
+### Host and Runtime
+
+- Run inside a dedicated Python virtual environment.
+- Keep dependencies updated (`pip install -U -r requirements.txt` in maintenance windows).
+- Store logs with restricted permissions and rotate them periodically.
+
+### Operational Safety
+
+- Run `python3 miraie/smoke_test.py` before production deploys.
+- Verify cron entries after schedule changes.
+- Keep a rollback backup of `miraie/` config JSON files.
+
+---
+
+## GitHub Pages Documentation
+
+If you want a public documentation site:
+
+1. In GitHub repository settings, enable Pages with source set to `Deploy from a branch`.
+2. Select branch `main` and folder `/docs`.
+3. Commit `docs/index.md` from this repo (added for onboarding and security notes).
+
+If the repo is private, GitHub Pages availability depends on your GitHub plan. For private/internal docs, keep the repository private and use a private wiki or internal docs portal.
