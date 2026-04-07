@@ -167,17 +167,24 @@ else
 fi
 
 # ---- Copy Python scripts and profiles ----
-# These are expected to be in the same directory as setup.sh
+# Repo layout: src/{scheduler,claude_sync,orchestrator} web/web_ui.py profiles/
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-for f in scheduler.py claude_sync.py web_ui.py; do
-    if [ -f "$SCRIPT_DIR/$f" ]; then
-        cp "$SCRIPT_DIR/$f" "$AGENTS_DIR/$f"
-        log "Copied $f"
+for f in scheduler.py claude_sync.py; do
+    if [ -f "$SCRIPT_DIR/src/$f" ]; then
+        cp "$SCRIPT_DIR/src/$f" "$AGENTS_DIR/$f"
+        log "Copied src/$f"
     else
-        log "WARNING: $f not found in $SCRIPT_DIR — copy it manually to $AGENTS_DIR/"
+        log "WARNING: src/$f not found — copy it manually to $AGENTS_DIR/"
     fi
 done
+
+if [ -f "$SCRIPT_DIR/web/web_ui.py" ]; then
+    cp "$SCRIPT_DIR/web/web_ui.py" "$AGENTS_DIR/web_ui.py"
+    log "Copied web/web_ui.py"
+else
+    log "WARNING: web/web_ui.py not found — copy it manually to $AGENTS_DIR/"
+fi
 
 for profile in email_sorter research_scout code_reviewer daily_scheduler; do
     src="$SCRIPT_DIR/profiles/$profile.md"

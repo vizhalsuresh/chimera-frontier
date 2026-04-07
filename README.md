@@ -58,20 +58,34 @@ Web UI:
 
 ## File Structure
 
+**Repository layout:**
 ```
-/root/agents/
+e-agent/
+├── README.md
+├── setup.sh              ← one-shot bootstrap (run from Termux)
+├── requirements.txt
 ├── config.json           ← edit model, schedule, ports
 ├── master_mission.md     ← Claude updates this every 5 hours
-├── scheduler.py          ← hourly sub-agent daemon
-├── claude_sync.py        ← Claude CLI sync script
-├── web_ui.py             ← FastAPI dashboard
-├── orchestrator.sh       ← cron entry point
+├── src/
+│   ├── scheduler.py      ← hourly sub-agent daemon
+│   ├── claude_sync.py    ← Claude CLI sync script
+│   └── orchestrator.sh   ← cron entry point
+├── web/
+│   └── web_ui.py         ← FastAPI dashboard
+└── profiles/
+    ├── email_sorter.md
+    ├── research_scout.md
+    ├── code_reviewer.md
+    └── daily_scheduler.md
+```
+
+**Deployed on phone** (setup.sh copies everything flat into `/root/agents/`):
+```
+/root/agents/
+├── config.json, master_mission.md
+├── scheduler.py, claude_sync.py, web_ui.py, orchestrator.sh
 ├── profiles/
-│   ├── email_sorter.md
-│   ├── research_scout.md
-│   ├── code_reviewer.md
-│   └── daily_scheduler.md
-└── logs/                 ← hourly .md output (auto-pruned after 7 days)
+└── logs/                 ← auto-pruned after 7 days (not in repo)
 ```
 
 ---
