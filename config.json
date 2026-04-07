@@ -1,0 +1,12 @@
+{
+  "ollama_url": "http://127.0.0.1:11434",
+  "model": "gemma2:2b",
+  "cycle_hours": 5,
+  "rotation_order": ["email_sorter", "research_scout", "code_reviewer", "daily_scheduler"],
+  "profiles_dir": "/root/agents/profiles",
+  "logs_dir": "/root/agents/logs",
+  "mission_file": "/root/agents/master_mission.md",
+  "state_file": "/root/agents/.cycle_state.json",
+  "web_host": "0.0.0.0",
+  "web_port": 8000
+}
