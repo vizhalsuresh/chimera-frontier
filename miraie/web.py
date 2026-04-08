@@ -474,6 +474,22 @@ async def api_add_schedule(req: Request):
     })
 
 
+@app.patch("/api/schedules/{sid:path}")
+async def api_toggle_schedule(sid: str, request: Request):
+    """Enable or disable a schedule without deleting it."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    data = await request.json()
+    schedules = load_schedules()
+    if sid not in schedules:
+        return JSONResponse({"ok": False, "error": "schedule not found"}, status_code=404)
+    if "enabled" in data:
+        schedules[sid]["enabled"] = bool(data["enabled"])
+    save_schedules(schedules)
+    cron = _sync_crontab()
+    return JSONResponse({"ok": True, "schedule": schedules[sid], "cron_synced": cron["ok"]})
+
+
 @app.delete("/api/schedules/{sid:path}")
 async def api_delete_schedule(sid: str, request: Request):
     if not _is_authorized(request):
