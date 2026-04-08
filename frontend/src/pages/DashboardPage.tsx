@@ -58,6 +58,7 @@ export function DashboardPage() {
   const [state, setState]           = useState<ACState>(defaults)
   const [timers, setTimers]         = useState<Record<string, TimerStatus>>({})
   const [loading, setLoading]       = useState(false)
+  const [timerLoading, setTimerLoading] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(30)
   const [error, setError]           = useState<string | null>(null)
 
@@ -86,20 +87,26 @@ export function DashboardPage() {
   async function setTimer(timerId: 'on' | 'off' | 'sleep') {
     const hours   = Math.floor(timerMinutes / 60)
     const minutes = timerMinutes % 60
+    setTimerLoading(true)
     try {
       await api.setTimer({ timer_id: timerId, hours, minutes })
       setTimers(await api.getTimers())
     } catch (e) {
       showError(`Timer failed: ${e instanceof Error ? e.message : 'unknown error'}`)
+    } finally {
+      setTimerLoading(false)
     }
   }
 
   async function cancelTimer(id: 'on' | 'off' | 'sleep') {
+    setTimerLoading(true)
     try {
       await api.cancelTimer(id)
       setTimers(await api.getTimers())
     } catch (e) {
       showError(`Cancel failed: ${e instanceof Error ? e.message : 'unknown error'}`)
+    } finally {
+      setTimerLoading(false)
     }
   }
 
@@ -171,7 +178,7 @@ export function DashboardPage() {
           <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Fan Speed</p>
             <div className="chipRow" style={{ marginBottom: 12 }}>
-              {(['auto', 'quiet', 'low', 'medium', 'high'] as const).map((fan) => (
+              {(['auto', 'low', 'medium', 'high'] as const).map((fan) => (
                 <button key={fan} className={state.fan === fan ? 'activeBtn' : ''} onClick={() => send({ fan })} disabled={loading}>
                   {fan}
                 </button>
@@ -179,54 +186,54 @@ export function DashboardPage() {
             </div>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 6 }}>Features</p>
             <div className="chipRow">
-              <button className={state.eco       ? 'activeBtn' : ''} onClick={() => send({ eco:      !state.eco,      ...(state.eco      ? {} : { powerful: false }) })} disabled={loading}>ECO</button>
-              <button className={state.powerful  ? 'activeBtn' : ''} onClick={() => send({ powerful: !state.powerful, ...(state.powerful ? {} : { eco: false }) })}      disabled={loading}>TURBO</button>
-              <button className={state.quiet     ? 'activeBtn' : ''} onClick={() => send({ quiet:    !state.quiet })}   disabled={loading}>QUIET</button>
-              <button className={state.nanoe     ? 'activeBtn' : ''} onClick={() => send({ nanoe:    !state.nanoe })}   disabled={loading}>NANOE</button>
-              <button className={state.iauto     ? 'activeBtn' : ''} onClick={() => send({ iauto:    !state.iauto })}   disabled={loading} title="AI auto mode">iAUTO</button>
+              <button className={state.eco      ? 'activeBtn' : ''} onClick={() => send({ eco:      !state.eco,      ...(state.eco      ? {} : { powerful: false }) })} disabled={loading}>ECO</button>
+              <button className={state.powerful ? 'activeBtn' : ''} onClick={() => send({ powerful: !state.powerful, ...(state.powerful ? {} : { eco: false }) })}      disabled={loading}>TURBO</button>
             </div>
           </motion.div>
 
           {/* ── Airflow / Swing ───────────────────────────────────── */}
           <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Airflow</p>
+
+            {/* Vertical swing: AUTO + fixed positions 1–5 in one unified row */}
+            <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>
+              V·Swing Position
+            </div>
             <div className="chipRow" style={{ marginBottom: 10 }}>
               <button
                 className={state.swing_v ? 'activeBtn' : ''}
-                onClick={() => send({ swing_v: !state.swing_v })}
+                onClick={() => send({ swing_v: true })}
                 disabled={loading}
                 title="Vertical auto-sweep"
               >
-                V·SWING
+                AUTO
               </button>
+              {([1, 2, 3, 4, 5] as const).map((angle) => (
+                <button
+                  key={angle}
+                  className={!state.swing_v && state.swing_angle === angle ? 'activeBtn' : ''}
+                  onClick={() => send({ swing_v: false, swing_angle: angle })}
+                  disabled={loading}
+                >
+                  {angle}
+                </button>
+              ))}
+            </div>
+
+            {/* Horizontal swing toggle */}
+            <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>
+              H·Swing
+            </div>
+            <div className="chipRow">
               <button
                 className={state.swing_h ? 'activeBtn' : ''}
                 onClick={() => send({ swing_h: !state.swing_h })}
                 disabled={loading}
                 title="Horizontal auto-sweep"
               >
-                H·SWING
+                {state.swing_h ? 'AUTO' : 'OFF'}
               </button>
             </div>
-            {!state.swing_v && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                <p style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>
-                  Fixed Angle (1–5)
-                </p>
-                <div className="chipRow">
-                  {([1, 2, 3, 4, 5] as const).map((angle) => (
-                    <button
-                      key={angle}
-                      className={state.swing_angle === angle ? 'activeBtn' : ''}
-                      onClick={() => send({ swing_angle: angle })}
-                      disabled={loading}
-                    >
-                      {angle}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
           </motion.div>
 
           {/* ── Timers ────────────────────────────────────────────── */}
@@ -245,9 +252,9 @@ export function DashboardPage() {
             </div>
 
             <div className="chipRow" style={{ marginBottom: 8 }}>
-              <button onClick={() => setTimer('on')}    disabled={loading}>ON timer</button>
-              <button onClick={() => setTimer('off')}   disabled={loading}>OFF timer</button>
-              <button onClick={() => setTimer('sleep')} disabled={loading}>SLEEP</button>
+              <button onClick={() => setTimer('on')}    disabled={timerLoading}>ON timer</button>
+              <button onClick={() => setTimer('off')}   disabled={timerLoading}>OFF timer</button>
+              <button onClick={() => setTimer('sleep')} disabled={timerLoading}>SLEEP</button>
             </div>
 
             {/* Timer status rows */}
@@ -272,6 +279,7 @@ export function DashboardPage() {
                   {active && (
                     <button
                       onClick={() => cancelTimer(id)}
+                      disabled={timerLoading}
                       style={{ fontSize: 9, padding: '2px 8px', borderColor: 'rgba(255,115,81,0.4)', color: '#ff7351' }}
                     >
                       Cancel
@@ -290,7 +298,7 @@ export function DashboardPage() {
               `SYS_BOOT :: REACT_FRONTEND v2`,
               `POWER=${state.power ? 'ON' : 'OFF'} · TEMP=${state.temp}°C · MODE=${state.mode.toUpperCase()} · FAN=${state.fan.toUpperCase()}`,
               `SWING_V=${state.swing_v ? 'AUTO' : `FIXED_${state.swing_angle}`} · SWING_H=${state.swing_h ? 'AUTO' : 'OFF'}`,
-              `ECO=${state.eco} · TURBO=${state.powerful} · QUIET=${state.quiet} · NANOE=${state.nanoe} · iAUTO=${state.iauto}`,
+              `ECO=${state.eco} · TURBO=${state.powerful}`,
               `SCHEDULES_ACTIVE=${state.schedule_count} · DEVICE=${state.device ?? 'NONE'}`,
             ]}
           />

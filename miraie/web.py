@@ -68,7 +68,7 @@ _DEFAULT_STATE = {
     "power":       False,
     "temp":        22,
     "mode":        "cool",    # cool | dry | fan | auto
-    "fan":         "auto",    # auto | quiet | low | medium | high
+    "fan":         "auto",    # auto | low | medium | high
     # Airflow
     "swing_v":     True,      # vertical swing (auto sweep)
     "swing_h":     False,     # horizontal swing
@@ -376,7 +376,7 @@ async def api_control(req: ControlRequest, request: Request):
         state["temp"] = max(16, min(30, req.temp))
     if req.mode is not None and req.mode in ("auto", "cool", "dry", "fan"):
         state["mode"] = req.mode
-    if req.fan is not None and req.fan in ("auto", "quiet", "low", "medium", "high"):
+    if req.fan is not None and req.fan in ("auto", "low", "medium", "high"):
         state["fan"] = req.fan
 
     # ── Airflow ────────────────────────────────────────────────────────────

@@ -189,8 +189,9 @@ def list_schedules() -> None:
 
 # Note: these numeric codes are based on Miraie MQTT reverse-engineering.
 # Verify against your device if a field doesn't respond as expected.
+# CS-SU12XKYWA (1-ton SU series): no Quiet fan level, codes 0–3
 _MODE_MAP = {"auto": 0, "cool": 1, "heat": 2, "dry": 3, "fan": 4}
-_FAN_MAP  = {"auto": 0, "quiet": 1, "low": 2, "medium": 3, "high": 4}
+_FAN_MAP  = {"auto": 0, "low": 1, "medium": 2, "high": 3}
 
 
 def build_payload(
