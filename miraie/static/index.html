@@ -190,9 +190,9 @@ tailwind.config = {
     <div class="px-2 space-y-0.5">
       <a class="flex items-center gap-2.5 px-3 py-2.5 text-pri bg-pri/10 border-r-2 border-pri" href="#">
         <span class="material-symbols-outlined text-sm">dashboard</span> DASHBOARD</a>
-      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="#">
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/logs">
         <span class="material-symbols-outlined text-sm">receipt_long</span> LOGS</a>
-      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="#">
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/scheduler">
         <span class="material-symbols-outlined text-sm">timer</span> SCHEDULES</a>
       <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/legacy">
         <span class="material-symbols-outlined text-sm">settings</span> LEGACY</a>
@@ -687,7 +687,7 @@ tailwind.config = {
     <span class="material-symbols-outlined text-lg">dashboard</span>
     <span class="text-[7px] font-mono">CTRL</span>
   </button>
-  <button class="flex flex-col items-center gap-0.5 text-white/30" @click="showSchedModal=true">
+  <button class="flex flex-col items-center gap-0.5 text-white/30" @click="window.location.href='/scheduler'">
     <span class="material-symbols-outlined text-lg">timer</span>
     <span class="text-[7px] font-mono">SCHED</span>
   </button>
@@ -704,10 +704,10 @@ tailwind.config = {
     <span class="material-symbols-outlined text-lg">analytics</span>
     <span class="text-[7px] font-mono">DATA</span>
   </button>
-  <button class="flex flex-col items-center gap-0.5 text-white/30">
+  <a href="/logs" class="flex flex-col items-center gap-0.5 text-white/30 hover:text-pri">
     <span class="material-symbols-outlined text-lg">history</span>
     <span class="text-[7px] font-mono">LOGS</span>
-  </button>
+  </a>
 </nav>
 
 <!-- ══ ALPINE COMPONENT ════════════════════════════════════════════════════ -->
@@ -766,6 +766,7 @@ function acDash() {
     logs:       [],
     clockStr:   '',
     _sendTimer: null,
+    apiToken:   '',
 
     // ─── Computed ────────────────────────────────────────────────────────────
     get arcOffset() {
@@ -778,6 +779,7 @@ function acDash() {
 
     // ─── Init ────────────────────────────────────────────────────────────────
     async init() {
+      this.apiToken = localStorage.getItem('miraie_api_token') || '';
       this.updateClock();
       setInterval(() => this.tick(), 1000);
       await this.fetchState();
@@ -969,7 +971,7 @@ function acDash() {
 
     async cancelTimer(tid) {
       try {
-        await fetch(`/api/timer/${encodeURIComponent(tid)}`, { method:'DELETE' });
+        await this._delete(`/api/timer/${encodeURIComponent(tid)}`);
         if (tid === 'sleep') { this.timers.sleep.active = false; }
         else { this.timers[tid].active = false; this.timers[tid].firesAt = null; }
         this.log('USER', `TIMER_${tid.toUpperCase()}_CANCELLED`, 'sec');
@@ -1006,7 +1008,7 @@ function acDash() {
 
     async delSchedule(sid) {
       try {
-        const d = await fetch(`/api/schedules/${encodeURIComponent(sid)}`, {method:'DELETE'}).then(r=>r.json());
+        const d = await this._delete(`/api/schedules/${encodeURIComponent(sid)}`);
         delete this.schedules[sid];
         this.schedules = { ...this.schedules };
         this._applyCron(d);
@@ -1035,18 +1037,49 @@ function acDash() {
 
     // ─── Utilities ───────────────────────────────────────────────────────────
     async _get(url) {
-      const r = await fetch(url);
+      const r = await fetch(url, { headers: this._authHeaders() });
+      if (r.status === 401) {
+        this._promptToken();
+        throw new Error('HTTP_401');
+      }
       if (!r.ok) throw new Error('HTTP_'+r.status);
       return r.json();
     },
 
     async _post(url, body) {
       const r = await fetch(url, {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json', ...this._authHeaders()},
         body: JSON.stringify(body),
       });
+      if (r.status === 401) {
+        this._promptToken();
+        throw new Error('HTTP_401');
+      }
       if (!r.ok) throw new Error('HTTP_'+r.status);
       return r.json();
+    },
+
+    async _delete(url) {
+      const r = await fetch(url, { method:'DELETE', headers:this._authHeaders() });
+      if (r.status === 401) {
+        this._promptToken();
+        throw new Error('HTTP_401');
+      }
+      if (!r.ok) throw new Error('HTTP_'+r.status);
+      return r.json();
+    },
+
+    _authHeaders() {
+      if (!this.apiToken) return {};
+      return { 'x-api-token': this.apiToken };
+    },
+
+    _promptToken() {
+      const value = prompt('Backend token required. Enter MIRAIE_API_TOKEN:');
+      if (!value) return;
+      this.apiToken = value.trim();
+      localStorage.setItem('miraie_api_token', this.apiToken);
+      this.log('AUTH', 'API token saved for this browser', 'pri');
     },
 
     log(lvl, msg, c='ter') {

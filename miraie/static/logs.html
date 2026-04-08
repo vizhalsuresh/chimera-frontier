@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SYS_AC_v2.0 | LOGS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        bg:    "#000000",
+        surf0: "#0e0e0e",
+        surf1: "#131313",
+        surf2: "#191919",
+        surf3: "#1f1f1f",
+        surf4: "#262626",
+        pri:   "#8eff71",
+        sec:   "#00fbfb",
+        ter:   "#88f6ff",
+        err:   "#ff7351",
+        mute:  "#484848",
+      },
+      fontFamily: { sans: ["Space Grotesk", "system-ui"] },
+      borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem" }
+    }
+  }
+}
+</script>
+
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Space Grotesk", system-ui; background: #000; color: #fff; }
+  .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; line-height:1; vertical-align:middle; }
+  [x-cloak] { display:none !important; }
+
+  .ctrl-btn {
+    display: flex; align-items: center; justify-content: center;
+    padding: .35rem .75rem; font-size: .65rem; font-weight: 700;
+    letter-spacing: .07em; cursor: pointer; border: 1px solid transparent;
+    background: #1f1f1f; color: rgba(255,255,255,.35);
+    transition: all .15s ease;
+  }
+  .ctrl-btn:hover   { color: #fff; border-color: #484848; }
+  .ctrl-btn.active  { background: rgba(142,255,113,.1); color: #8eff71; border-color: rgba(142,255,113,.4); box-shadow: 0 0 8px rgba(142,255,113,.15); }
+  .ctrl-btn.active-sec { background: rgba(0,251,251,.1); color: #00fbfb; border-color: rgba(0,251,251,.4); }
+  .ctrl-btn.active-err { background: rgba(255,115,81,.1); color: #ff7351; border-color: rgba(255,115,81,.4); }
+
+  .sec-label { font-size: .6rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.25); }
+
+  .pulse-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .pulse-on  { background: #8eff71; animation: pulse-glow 2s infinite; }
+  .pulse-off { background: #484848; }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(142,255,113,.5); }
+    50%      { box-shadow: 0 0 0 4px rgba(142,255,113,0); }
+  }
+
+  .spinner { width:10px; height:10px; border:1.5px solid rgba(255,255,255,.15); border-top-color:#8eff71; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .crt { position: fixed; inset: 0; pointer-events: none; z-index: 100;
+         background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.5) 100%); }
+
+  /* Log line colours */
+  .log-info    { color: rgba(255,255,255,.65); }
+  .log-warning { color: #f0a500; }
+  .log-error   { color: #ff7351; }
+  .log-success { color: #8eff71; }
+  .log-debug   { color: rgba(255,255,255,.3); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+</style>
+</head>
+
+<body class="bg-bg overflow-hidden flex flex-col h-screen" x-data="logViewer()" x-init="init()" x-cloak>
+
+<div class="crt"></div>
+
+<!-- ══ TOP BAR ═══════════════════════════════════════════════════════════════ -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-4 h-11
+               bg-black border-b border-white/5 font-sans tracking-tight text-[11px]">
+  <div class="flex items-center gap-5">
+    <a href="/" class="text-pri font-bold tracking-widest text-sm hover:opacity-75">SYS_AC</a>
+    <span class="text-white/20 hidden md:block">v2.0 · LOG_STREAM</span>
+  </div>
+  <div class="flex items-center gap-4">
+    <span class="font-mono text-[10px] text-white/20" x-text="clockStr"></span>
+    <div class="flex items-center gap-1.5">
+      <span class="spinner" x-show="loading"></span>
+      <span class="text-[10px]" :class="autoRefresh ? 'text-pri' : 'text-white/20'"
+            x-text="autoRefresh ? 'LIVE' : 'PAUSED'"></span>
+    </div>
+    <span class="text-white/20 text-[10px] font-mono" x-text="'TOTAL: ' + totalLines"></span>
+  </div>
+</header>
+
+<!-- ══ SIDEBAR (desktop) ═════════════════════════════════════════════════════ -->
+<aside class="fixed left-0 top-11 bottom-0 w-56 bg-black border-r border-white/5
+              hidden md:flex flex-col z-40">
+  <div class="px-5 py-5 flex items-center gap-3 border-b border-white/5">
+    <div class="w-7 h-7 bg-surf4 flex items-center justify-center">
+      <span class="material-symbols-outlined text-sec text-base">ac_unit</span>
+    </div>
+    <div>
+      <div class="text-sec text-[11px] font-bold tracking-widest">MIRAIE</div>
+      <div class="text-white/20 text-[9px]">LOG_VIEWER</div>
+    </div>
+  </div>
+
+  <nav class="flex-1 py-3 text-[10px] uppercase tracking-widest">
+    <div class="px-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/">
+        <span class="material-symbols-outlined text-sm">dashboard</span> DASHBOARD</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-pri bg-pri/10 border-r-2 border-pri" href="/logs">
+        <span class="material-symbols-outlined text-sm">receipt_long</span> LOGS</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/scheduler">
+        <span class="material-symbols-outlined text-sm">timer</span> SCHEDULES</a>
+      <a class="flex items-center gap-2.5 px-3 py-2.5 text-white/30 hover:text-sec hover:bg-white/5 transition-all" href="/legacy">
+        <span class="material-symbols-outlined text-sm">settings</span> LEGACY</a>
+    </div>
+  </nav>
+
+  <!-- File selector -->
+  <div class="p-4 border-t border-white/5 space-y-2">
+    <div class="sec-label mb-2">LOG_FILE</div>
+    <template x-for="f in files" :key="f">
+      <button @click="selectFile(f)" class="ctrl-btn w-full justify-start gap-2"
+              :class="activeFile === f ? 'active' : ''">
+        <span class="material-symbols-outlined text-sm">
+          <template x-if="f === 'cron'">schedule</template>
+          <template x-if="f === 'daemon'">memory</template>
+          <template x-if="f === 'web'">language</template>
+        </span>
+        <span x-text="f.toUpperCase() + '.LOG'"></span>
+      </button>
+    </template>
+
+    <div class="pt-2 border-t border-white/5 space-y-1.5">
+      <div class="sec-label">DISPLAY</div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" x-model="autoRefresh" class="accent-pri w-3 h-3"/>
+        <span class="text-[10px] text-white/40">Auto-refresh (5s)</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" x-model="autoScroll" class="accent-pri w-3 h-3"/>
+        <span class="text-[10px] text-white/40">Scroll to bottom</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" x-model="wrapLines" class="accent-pri w-3 h-3"/>
+        <span class="text-[10px] text-white/40">Wrap lines</span>
+      </label>
+    </div>
+
+    <div class="pt-1">
+      <div class="sec-label mb-1.5">LINES</div>
+      <div class="flex gap-1">
+        <template x-for="count in [100, 200, 500]" :key="count">
+          <button @click="lineCount = count; fetch()" class="ctrl-btn flex-1 text-[9px]"
+                  :class="lineCount === count ? 'active-sec' : ''" x-text="count"></button>
+        </template>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════════════ -->
+<main class="mt-11 md:ml-56 flex-1 overflow-hidden bg-black flex flex-col">
+
+  <!-- Toolbar -->
+  <div class="flex items-center gap-2 px-3 py-2 border-b border-white/5 shrink-0 flex-wrap">
+    <!-- Mobile file tabs -->
+    <div class="flex gap-1 md:hidden">
+      <template x-for="f in files" :key="f">
+        <button @click="selectFile(f)" class="ctrl-btn"
+                :class="activeFile === f ? 'active' : ''" x-text="f.toUpperCase()"></button>
+      </template>
+    </div>
+
+    <div class="flex-1 flex items-center gap-2">
+      <!-- Filter -->
+      <div class="relative flex-1 max-w-xs">
+        <span class="absolute left-2 top-1/2 -translate-y-1/2 material-symbols-outlined text-xs text-white/20">search</span>
+        <input x-model="filter" placeholder="Filter lines…"
+               class="w-full bg-surf3 border border-white/8 text-white/70 text-[11px] pl-6 pr-2 py-1 font-mono outline-none focus:border-pri/40"/>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-1.5 ml-auto">
+      <button @click="fetch()" class="ctrl-btn gap-1.5" :disabled="loading">
+        <span x-show="!loading" class="material-symbols-outlined text-sm">refresh</span>
+        <span x-show="loading" class="spinner"></span>
+        <span class="hidden md:inline">REFRESH</span>
+      </button>
+      <button @click="clearDisplay()" class="ctrl-btn active-err">
+        <span class="material-symbols-outlined text-sm">clear_all</span>
+        <span class="hidden md:inline">CLEAR</span>
+      </button>
+      <button @click="scrollBottom()" class="ctrl-btn active-sec">
+        <span class="material-symbols-outlined text-sm">vertical_align_bottom</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="flex items-center gap-3 px-3 py-1.5 border-b border-white/5 shrink-0 bg-surf1 text-[9px] font-mono text-white/30">
+    <span x-text="activeFile.toUpperCase() + '.LOG'"></span>
+    <span class="text-white/10">·</span>
+    <span x-text="filteredLines.length + ' / ' + totalLines + ' LINES'"></span>
+    <span class="text-white/10">·</span>
+    <span x-text="'LAST_FETCH: ' + lastFetch"></span>
+    <span x-show="filter" class="text-sec ml-1">FILTER: <span x-text="filter"></span></span>
+  </div>
+
+  <!-- Log output -->
+  <div id="logOutput"
+       class="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-5"
+       :class="wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre overflow-x-auto'">
+
+    <template x-if="filteredLines.length === 0 && !loading">
+      <div class="flex flex-col items-center justify-center h-full gap-3 text-white/20">
+        <span class="material-symbols-outlined text-4xl">receipt_long</span>
+        <span class="text-[11px] uppercase tracking-widest" x-text="filter ? 'NO_LINES_MATCH_FILTER' : 'LOG_FILE_EMPTY'"></span>
+      </div>
+    </template>
+
+    <template x-for="(line, i) in filteredLines" :key="i">
+      <div class="leading-5 hover:bg-white/3 px-1" :class="lineClass(line)" x-text="line"></div>
+    </template>
+  </div>
+</main>
+
+<!-- ══ MOBILE BOTTOM NAV ═════════════════════════════════════════════════════ -->
+<nav class="md:hidden fixed bottom-0 w-full bg-black border-t border-white/5 z-50
+            grid grid-cols-4 h-14">
+  <a href="/" class="flex flex-col items-center justify-center gap-0.5 text-white/30 hover:text-pri">
+    <span class="material-symbols-outlined text-lg">dashboard</span>
+    <span class="text-[7px] font-mono">DASH</span>
+  </a>
+  <a href="/logs" class="flex flex-col items-center justify-center gap-0.5 text-pri">
+    <span class="material-symbols-outlined text-lg">history</span>
+    <span class="text-[7px] font-mono">LOGS</span>
+  </a>
+  <a href="/scheduler" class="flex flex-col items-center justify-center gap-0.5 text-white/30 hover:text-pri">
+    <span class="material-symbols-outlined text-lg">timer</span>
+    <span class="text-[7px] font-mono">SCHED</span>
+  </a>
+  <a href="/legacy" class="flex flex-col items-center justify-center gap-0.5 text-white/30 hover:text-pri">
+    <span class="material-symbols-outlined text-lg">settings</span>
+    <span class="text-[7px] font-mono">LEGACY</span>
+  </a>
+</nav>
+
+<!-- ══ ALPINE COMPONENT ════════════════════════════════════════════════════ -->
+<script>
+function logViewer() {
+  return {
+    files:       ['cron', 'daemon', 'web'],
+    activeFile:  'cron',
+    lines:       [],
+    totalLines:  0,
+    loading:     false,
+    autoRefresh: true,
+    autoScroll:  true,
+    wrapLines:   false,
+    filter:      '',
+    lineCount:   200,
+    lastFetch:   '—',
+    clockStr:    '',
+    _timer:      null,
+
+    get filteredLines() {
+      if (!this.filter.trim()) return this.lines;
+      const q = this.filter.toLowerCase();
+      return this.lines.filter(l => l.toLowerCase().includes(q));
+    },
+
+    init() {
+      this.clockStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
+      setInterval(() => { this.clockStr = new Date().toLocaleTimeString('en-GB', { hour12: false }); }, 1000);
+      this.fetch();
+      this.startTimer();
+    },
+
+    startTimer() {
+      clearInterval(this._timer);
+      this._timer = setInterval(() => { if (this.autoRefresh) this.fetch(); }, 5000);
+    },
+
+    selectFile(f) {
+      this.activeFile = f;
+      this.lines = [];
+      this.totalLines = 0;
+      this.fetch();
+    },
+
+    async fetch() {
+      this.loading = true;
+      try {
+        const r = await fetch(`/api/logs?file=${this.activeFile}&n=${this.lineCount}`);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (d.ok) {
+          this.lines      = d.lines;
+          this.totalLines = d.total ?? d.lines.length;
+          this.lastFetch  = new Date().toLocaleTimeString('en-GB', { hour12: false });
+          if (this.autoScroll) this.$nextTick(() => this.scrollBottom());
+        }
+      } catch(e) {
+        console.error('Log fetch failed', e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    clearDisplay() {
+      this.lines = [];
+      this.totalLines = 0;
+      this.filter = '';
+    },
+
+    scrollBottom() {
+      const el = document.getElementById('logOutput');
+      if (el) el.scrollTop = el.scrollHeight;
+    },
+
+    lineClass(line) {
+      const l = line.toLowerCase();
+      if (l.includes('error') || l.includes('failed') || l.includes('fail'))     return 'log-error';
+      if (l.includes('warn') || l.includes('warning'))                            return 'log-warning';
+      if (l.includes('success') || l.includes('✓') || l.includes('connected'))   return 'log-success';
+      if (l.includes('debug'))                                                     return 'log-debug';
+      return 'log-info';
+    },
+  }
+}
+</script>
+</body>
+</html>

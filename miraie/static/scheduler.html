@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SYS_AC_v1.0 | SCHEDULER</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline": "#757575",
+                        "surface-container-highest": "#262626",
+                        "inverse-primary": "#106f00",
+                        "on-primary-container": "#0b5800",
+                        "tertiary-fixed-dim": "#00deea",
+                        "primary-fixed-dim": "#2be800",
+                        "on-primary": "#0d6100",
+                        "surface-bright": "#2c2c2c",
+                        "tertiary-fixed": "#17eefa",
+                        "secondary-fixed-dim": "#00ecec",
+                        "surface-container-high": "#1f1f1f",
+                        "secondary": "#00fbfb",
+                        "primary": "#8eff71",
+                        "on-tertiary": "#005d62",
+                        "on-secondary-container": "#d9fffe",
+                        "tertiary-container": "#17eefa",
+                        "on-tertiary-fixed": "#003f43",
+                        "on-error": "#450900",
+                        "error": "#ff7351",
+                        "primary-dim": "#2be800",
+                        "on-surface-variant": "#ababab",
+                        "on-tertiary-fixed-variant": "#005e63",
+                        "on-primary-fixed-variant": "#0d6200",
+                        "surface-tint": "#8eff71",
+                        "on-secondary-fixed-variant": "#006666",
+                        "on-primary-fixed": "#064200",
+                        "surface-variant": "#262626",
+                        "on-tertiary-container": "#005458",
+                        "surface": "#0e0e0e",
+                        "error-container": "#b92902",
+                        "on-secondary": "#005c5c",
+                        "surface-container": "#191919",
+                        "background": "#0e0e0e",
+                        "surface-container-low": "#131313",
+                        "on-surface": "#ffffff",
+                        "secondary-fixed": "#00fbfb",
+                        "error-dim": "#d53d18",
+                        "inverse-on-surface": "#555555",
+                        "on-error-container": "#ffd2c8",
+                        "secondary-dim": "#00ecec",
+                        "inverse-surface": "#f9f9f9",
+                        "tertiary-dim": "#00deea",
+                        "surface-container-lowest": "#000000",
+                        "on-background": "#ffffff",
+                        "primary-fixed": "#2ff801",
+                        "on-secondary-fixed": "#004747",
+                        "outline-variant": "#484848",
+                        "secondary-container": "#006a6a",
+                        "tertiary": "#88f6ff",
+                        "surface-dim": "#0e0e0e",
+                        "primary-container": "#2ff801"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Space Grotesk"],
+                        "label": ["Space Grotesk"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            font-family: 'Space Grotesk', monospace;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+            font-size: 18px;
+        }
+        .scanline {
+            background: linear-gradient(to bottom, transparent 50%, rgba(142, 255, 113, 0.05) 50%);
+            background-size: 100% 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0e0e0e;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #262626;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #8eff71;
+        }
+    </style>
+</head>
+<body class="text-on-surface custom-scrollbar">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-12 bg-black border-b border-white/10 shadow-[0px_0px_12px_rgba(142,255,113,0.15)]">
+<div class="flex items-center gap-4">
+<span class="text-lime-400 font-bold tracking-widest font-mono text-sm">SYS_AC_v1.0</span>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<nav class="hidden md:flex gap-6">
+<a class="text-gray-500 font-mono tracking-tighter uppercase text-xs hover:text-cyan-400 transition-colors duration-200" href="#">DASHBOARD</a>
+<a class="text-lime-400 border-b-2 border-lime-400 font-mono tracking-tighter uppercase text-xs hover:text-cyan-400 transition-colors duration-200" href="#">SCHEDULER</a>
+<a class="text-gray-500 font-mono tracking-tighter uppercase text-xs hover:text-cyan-400 transition-colors duration-200" href="/logs">LOGS</a>
+</nav>
+</div>
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-lime-400 hover:text-cyan-400 transition-colors duration-200">settings_input_component</button>
+<button class="material-symbols-outlined text-lime-400 hover:text-cyan-400 transition-colors duration-200">terminal</button>
+<button class="material-symbols-outlined text-lime-400 hover:text-cyan-400 transition-colors duration-200">power_settings_new</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-12 h-[calc(100vh-3rem)] z-40 flex flex-col pt-8 bg-black border-r border-white/5 w-64 hidden lg:flex">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-highest border border-primary/20 flex items-center justify-center rounded-sm">
+<span class="material-symbols-outlined text-secondary text-sm" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+</div>
+<div>
+<p class="text-cyan-400 font-black font-mono text-[10px] tracking-widest">OP_ADMIN</p>
+<p class="text-gray-600 font-mono text-[10px] uppercase tracking-widest">SECTOR_G7</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 hover:bg-white/5 hover:text-cyan-400 transition-all duration-200 font-mono text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined">dashboard</span> DASHBOARD
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 bg-lime-400/10 text-lime-400 border-r-2 border-lime-400 font-bold font-mono text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span> SCHEDULER
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 hover:bg-white/5 hover:text-cyan-400 transition-all duration-200 font-mono text-[10px] uppercase tracking-widest" href="/logs">
+<span class="material-symbols-outlined">receipt_long</span> LOGS
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 hover:bg-white/5 hover:text-cyan-400 transition-all duration-200 font-mono text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined">account_circle</span> PROFILES
+            </a>
+</nav>
+<div class="mt-auto p-4 space-y-4">
+<button class="w-full py-2 bg-primary text-on-primary font-mono text-[10px] font-bold tracking-widest uppercase hover:opacity-90 active:translate-x-1 duration-200">INIT_PURGE</button>
+<div class="pt-4 border-t border-white/5">
+<a class="flex items-center gap-3 px-3 py-1 text-gray-600 hover:text-cyan-400 font-mono text-[10px] uppercase tracking-widest mb-1" href="#">
+<span class="material-symbols-outlined">code</span> TERMINAL
+                </a>
+<a class="flex items-center gap-3 px-3 py-1 text-gray-600 hover:text-cyan-400 font-mono text-[10px] uppercase tracking-widest" href="#">
+<span class="material-symbols-outlined">help_outline</span> HELP
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-12 min-h-screen bg-surface-container-lowest relative scanline">
+<div class="max-w-[1600px] mx-auto p-4 md:p-6 grid grid-cols-12 gap-4">
+<!-- Header Section -->
+<div class="col-span-12 mb-2 flex items-end justify-between border-b border-outline-variant/20 pb-4">
+<div>
+<p class="text-primary font-mono text-[10px] tracking-[0.3em] uppercase mb-1">System Module</p>
+<h1 class="text-3xl font-headline font-extrabold uppercase tracking-tighter">Scheduler_Core.v2</h1>
+</div>
+<div class="flex gap-2">
+<div class="px-3 py-1 bg-surface-container border border-outline-variant/30 flex items-center gap-2">
+<span class="w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_#8eff71]"></span>
+<span class="text-[10px] font-mono text-primary font-bold uppercase">Active_Now: Night_Cooling</span>
+</div>
+</div>
+</div>
+<!-- Weekly Overview Grid -->
+<section class="col-span-12 lg:col-span-12 bg-surface-container-low p-1 flex flex-col gap-1 border border-outline-variant/10">
+<div class="grid grid-cols-7 gap-1" id="weekGrid">
+<!-- Day Items -->
+<div class="bg-surface-container-highest p-3 border-l-2 border-primary">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">MON</p>
+<p class="text-lg font-bold text-primary">04</p>
+<div class="mt-2 h-1 w-full bg-surface-container flex overflow-hidden">
+<div class="h-full bg-primary/40 w-1/4"></div>
+<div class="h-full bg-primary w-1/2"></div>
+</div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">TUE</p>
+<p class="text-lg font-bold">05</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">WED</p>
+<p class="text-lg font-bold">06</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">THU</p>
+<p class="text-lg font-bold">07</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">FRI</p>
+<p class="text-lg font-bold">08</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">SAT</p>
+<p class="text-lg font-bold">09</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+<div class="bg-surface-container-low p-3 opacity-60">
+<p class="text-[10px] font-mono text-outline uppercase tracking-widest">SUN</p>
+<p class="text-lg font-bold">10</p>
+<div class="mt-2 h-1 w-full bg-surface-container"></div>
+</div>
+</div>
+</section>
+<!-- Main Timeline Content -->
+<section class="col-span-12 lg:col-span-8 bg-surface-container-low p-6 flex flex-col gap-6 relative">
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-xs font-mono font-bold tracking-[0.2em] text-secondary uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">view_timeline</span> Active_Sequences::Monday
+                    </h2>
+<button id="newEventBtn" class="text-[10px] font-mono border border-outline-variant/40 px-3 py-1 hover:bg-white/5 transition-colors">+ NEW_EVENT</button>
+</div>
+<!-- Vertical Timeline Container -->
+<div class="relative pl-12 border-l border-outline-variant/20 space-y-8 py-4" id="timelineList">
+<!-- Current Time Marker -->
+<div class="absolute left-[-1px] top-[40%] w-full flex items-center z-10">
+<div class="absolute left-[-4px] w-2 h-2 bg-secondary rounded-full shadow-[0_0_8px_#00fbfb]"></div>
+<div class="w-full h-px bg-secondary/30 border-t border-dashed border-secondary/50"></div>
+<span class="absolute left-[-50px] text-[10px] font-mono text-secondary font-bold">14:32</span>
+</div>
+<!-- Event Card 1 -->
+<div class="relative group">
+<span class="absolute left-[-55px] top-1 text-[10px] font-mono text-outline">08:00</span>
+<div class="bg-surface-container-highest p-4 border-l-4 border-primary/40 group-hover:border-primary transition-all duration-300">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="text-xs font-bold font-mono tracking-widest uppercase">Morning Warm-up</h3>
+<p class="text-[10px] text-primary/70 font-mono mt-1">STATUS: COMPLETED</p>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors cursor-pointer">drag_indicator</span>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-low px-3 py-2 flex flex-col">
+<span class="text-[8px] text-outline font-mono uppercase">Temp</span>
+<span class="text-sm font-bold text-on-surface">22.0°C</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 flex flex-col">
+<span class="text-[8px] text-outline font-mono uppercase">Mode</span>
+<span class="text-sm font-bold text-on-surface">HEAT</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 flex flex-col">
+<span class="text-[8px] text-outline font-mono uppercase">Fan</span>
+<span class="text-sm font-bold text-on-surface">AUTO</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Event Card 2 (Active) -->
+<div class="relative group">
+<span class="absolute left-[-55px] top-1 text-[10px] font-mono text-secondary">12:30</span>
+<div class="bg-surface-container-highest p-4 border-l-4 border-primary relative overflow-hidden shadow-[0px_0px_12px_rgba(142,255,113,0.15)]">
+<div class="absolute top-0 right-0 p-2">
+<div class="animate-pulse flex items-center gap-1">
+<span class="w-1.5 h-1.5 bg-primary rounded-full"></span>
+<span class="text-[8px] font-bold text-primary font-mono tracking-tighter">RUNNING</span>
+</div>
+</div>
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="text-xs font-bold font-mono tracking-widest uppercase text-primary">Work_Hours_Optimal</h3>
+<p class="text-[10px] text-on-surface-variant font-mono mt-1">END_TIME: 18:00</p>
+</div>
+<span class="material-symbols-outlined text-primary cursor-pointer">drag_indicator</span>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-low px-3 py-2 flex flex-col border border-primary/20">
+<span class="text-[8px] text-primary/60 font-mono uppercase">Temp</span>
+<span class="text-sm font-bold text-primary">19.5°C</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 flex flex-col border border-primary/20">
+<span class="text-[8px] text-primary/60 font-mono uppercase">Mode</span>
+<span class="text-sm font-bold text-primary">COOL</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 flex flex-col border border-primary/20">
+<span class="text-[8px] text-primary/60 font-mono uppercase">Power</span>
+<span class="text-sm font-bold text-primary">ECO_MAX</span>
+</div>
+</div>
+<!-- Conflict Warning Placeholder -->
+<div class="mt-3 flex items-center gap-2 text-[9px] text-error font-mono bg-error/10 p-1 px-2 border border-error/20">
+<span class="material-symbols-outlined text-xs">warning</span> 
+                                ALERT: POTENTIAL OVERLAP WITH 'ECO_DUSK' (17:45)
+                            </div>
+</div>
+</div>
+<!-- Event Card 3 (Future) -->
+<div class="relative group">
+<span class="absolute left-[-55px] top-1 text-[10px] font-mono text-outline">22:00</span>
+<div class="bg-surface-container-highest p-4 border-l-4 border-outline-variant/30 group-hover:border-secondary transition-all duration-300 opacity-60 group-hover:opacity-100">
+<div class="flex justify-between items-start mb-3">
+<div>
+<h3 class="text-xs font-bold font-mono tracking-widest uppercase">Night Cooling</h3>
+<p class="text-[10px] text-outline font-mono mt-1">STATUS: QUEUED</p>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:text-secondary cursor-pointer">drag_indicator</span>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-low px-3 py-2 flex flex-col">
+<span class="text-[8px] text-outline font-mono uppercase">Temp</span>
+<span class="text-sm font-bold text-on-surface">18.0°C</span>
+</div>
+<div class="bg-surface-container-low px-3 py-2 flex flex-col">
+<span class="text-[8px] text-outline font-mono uppercase">Mode</span>
+<span class="text-sm font-bold text-on-surface">COOL</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Sidebar Panels -->
+<aside class="col-span-12 lg:col-span-4 flex flex-col gap-4">
+<!-- Presets Panel -->
+<div class="bg-surface-container p-5 border-l-2 border-secondary/40">
+<h2 class="text-xs font-mono font-bold tracking-[0.2em] text-secondary uppercase mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">dynamic_feed</span> Quick_Presets
+                    </h2>
+<div class="space-y-2">
+<button class="w-full flex items-center justify-between p-3 bg-surface-container-highest hover:bg-secondary/10 hover:text-secondary group transition-all duration-200 border border-white/5">
+<span class="text-[10px] font-bold font-mono tracking-widest uppercase">Morning Warm-up</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">add_circle</span>
+</button>
+<button class="w-full flex items-center justify-between p-3 bg-surface-container-highest hover:bg-secondary/10 hover:text-secondary group transition-all duration-200 border border-white/5">
+<span class="text-[10px] font-bold font-mono tracking-widest uppercase">Night Cooling</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">add_circle</span>
+</button>
+<button class="w-full flex items-center justify-between p-3 bg-surface-container-highest hover:bg-secondary/10 hover:text-secondary group transition-all duration-200 border border-white/5">
+<span class="text-[10px] font-bold font-mono tracking-widest uppercase">Work Hours</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">add_circle</span>
+</button>
+<button class="w-full flex items-center justify-between p-3 bg-surface-container-highest hover:bg-secondary/10 hover:text-secondary group transition-all duration-200 border border-white/5">
+<span class="text-[10px] font-bold font-mono tracking-widest uppercase">Eco Save</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">add_circle</span>
+</button>
+</div>
+</div>
+<!-- Metrics / Data Panel -->
+<div class="bg-surface-container p-5 flex flex-col gap-4 border-l-2 border-primary/20">
+<h2 class="text-xs font-mono font-bold tracking-[0.2em] text-primary uppercase flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">analytics</span> efficiency_index
+                    </h2>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-3 border border-outline-variant/20">
+<p class="text-[9px] text-outline font-mono uppercase mb-1">Weekly_Usage</p>
+<p class="text-xl font-bold font-mono text-primary">142<span class="text-[10px] font-normal text-outline">kWh</span></p>
+</div>
+<div class="bg-surface-container-lowest p-3 border border-outline-variant/20">
+<p class="text-[9px] text-outline font-mono uppercase mb-1">Avg_Temp</p>
+<p class="text-xl font-bold font-mono text-secondary">21.4<span class="text-[10px] font-normal text-outline">°C</span></p>
+</div>
+</div>
+<div class="mt-2">
+<p class="text-[9px] text-outline font-mono uppercase mb-2">Schedule_Density</p>
+<div class="h-10 bg-surface-container-lowest border border-outline-variant/20 relative flex items-end p-1 gap-1">
+<div class="flex-1 bg-primary/20 h-[40%]"></div>
+<div class="flex-1 bg-primary/40 h-[60%]"></div>
+<div class="flex-1 bg-primary h-[90%]"></div>
+<div class="flex-1 bg-primary/60 h-[70%]"></div>
+<div class="flex-1 bg-primary/30 h-[50%]"></div>
+<div class="flex-1 bg-primary/20 h-[30%]"></div>
+<div class="flex-1 bg-primary/10 h-[10%]"></div>
+</div>
+</div>
+</div>
+<!-- Status Console -->
+<div class="bg-black p-4 border border-outline-variant/20 font-mono text-[9px] flex-1 min-h-[150px] overflow-hidden relative">
+<div class="absolute top-0 right-0 p-2">
+<span class="text-primary/40 animate-pulse">LIVE_FEED</span>
+</div>
+<div class="text-primary/60 space-y-1">
+<p>[14:30:12] :: SYS_CORE_OK</p>
+<p>[14:31:45] :: EVENT_TRIGGERED : Work_Hours_Optimal</p>
+<p>[14:31:46] :: VALVE_01 : OPEN_FULL</p>
+<p>[14:31:47] :: COMPRESSOR : ACTIVE [STATE: HIGH]</p>
+<p class="text-secondary">[14:32:00] :: SENSOR_SCAN_COMPLETE : 21.4°C</p>
+<p class="text-error/70">[14:33:01] :: OVERLAP_DETECTION_ENGINE : RUNNING...</p>
+<p class="text-white/40 italic">_awaiting terminal input...</p>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- FAB (Suppressed based on context, but here for structural demo) -->
+<!-- Not rendering FAB as per task focus on focused scheduler grid -->
+<!-- Mobile BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 w-full h-16 bg-surface-container flex items-center justify-around z-50 border-t border-white/10">
+<button class="flex flex-col items-center gap-1 text-gray-500">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[8px] font-mono uppercase">DASH</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-lime-400">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+<span class="text-[8px] font-mono uppercase">SCHED</span>
+</button>
+<a href="/logs" class="flex flex-col items-center gap-1 text-gray-500 hover:text-cyan-400">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[8px] font-mono uppercase">LOGS</span>
+</a>
+<button class="flex flex-col items-center gap-1 text-gray-500">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="text-[8px] font-mono uppercase">PROF</span>
+</button>
+</nav>
+<script>
+  const DAY_ORDER = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  let apiToken = localStorage.getItem("miraie_api_token") || "";
+  function escapeHtml(s){return String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");}
+  function authHeaders(){
+    if (!apiToken) return {};
+    return { "x-api-token": apiToken };
+  }
+  function ensureToken(){
+    if (apiToken) return true;
+    const v = prompt("Enter MIRAIE_API_TOKEN to enable scheduler write actions:");
+    if (!v) return false;
+    apiToken = v.trim();
+    localStorage.setItem("miraie_api_token", apiToken);
+    return !!apiToken;
+  }
+  async function fetchJSON(url, options={}){
+    const headers = { ...(options.headers || {}), ...authHeaders() };
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      localStorage.removeItem("miraie_api_token");
+      apiToken = "";
+      throw new Error("HTTP_401");
+    }
+    if (!res.ok) throw new Error("HTTP_"+res.status);
+    return res.json();
+  }
+  function renderWeek(stats){
+    const week=document.getElementById("weekGrid"); if(!week) return;
+    const max=Math.max(1,...DAY_ORDER.map(d=>stats[d]||0));
+    week.innerHTML=DAY_ORDER.map((d,i)=>{const n=stats[d]||0; const p=Math.max(6,Math.round((n/max)*100)); const a=i===0;
+      return `<div class="${a?"bg-surface-container-highest p-3 border-l-2 border-primary":"bg-surface-container-low p-3 opacity-60"}"><p class="text-[10px] font-mono text-outline uppercase tracking-widest">${d.toUpperCase()}</p><p class="text-lg font-bold ${a?"text-primary":""}">${n}</p><div class="mt-2 h-1 w-full bg-surface-container"><div class="h-full bg-primary" style="width:${p}%"></div></div></div>`;
+    }).join("");
+  }
+  function renderTimeline(entries){
+    const box=document.getElementById("timelineList"); if(!box) return;
+    if(!entries.length){box.innerHTML='<div class="text-[10px] font-mono text-outline">NO_SCHEDULES_CONFIGURED</div>'; return;}
+    box.innerHTML=entries.map(([sid,s])=>{const on=(s.action||"").toLowerCase()==="on"; const days=(s.days||[]).join(", ")||"N/A";
+      return `<div class="relative group"><span class="absolute left-[-55px] top-1 text-[10px] font-mono text-outline">${escapeHtml(s.time||"--:--")}</span><div class="bg-surface-container-highest p-4 border-l-4 ${on?"border-primary/60":"border-error/70"}"><div class="flex justify-between items-start mb-2"><div><h3 class="text-xs font-bold font-mono tracking-widest uppercase ${on?"text-primary":"text-error"}">${on?"TURN_ON":"TURN_OFF"}</h3><p class="text-[10px] text-on-surface-variant font-mono mt-1">DAYS: ${escapeHtml(days)}</p></div><div class="text-right"><span class="block text-[9px] text-outline font-mono">${escapeHtml(sid)}</span><button data-del-sid="${escapeHtml(sid)}" class="mt-2 text-[9px] border border-error/40 text-error px-2 py-0.5 hover:bg-error/10">DELETE</button></div></div><div class="text-[9px] font-mono ${s.enabled?"text-primary/80":"text-error/80"}">STATUS: ${s.enabled?"ENABLED":"DISABLED"}</div></div></div>`;
+    }).join("");
+    box.querySelectorAll("[data-del-sid]").forEach((btn)=>{
+      btn.addEventListener("click", async ()=>{
+        const sid = btn.getAttribute("data-del-sid");
+        if (!sid) return;
+        if (!confirm(`Delete schedule ${sid}?`)) return;
+        if (!ensureToken()) return;
+        try {
+          await fetchJSON(`/api/schedules/${encodeURIComponent(sid)}`, { method:"DELETE" });
+          await loadSchedules();
+        } catch (e) {
+          if (String(e.message) === "HTTP_401") alert("Invalid token. Re-enter token and retry.");
+          else alert("Delete failed: " + e.message);
+        }
+      });
+    });
+  }
+  async function loadSchedules(){
+    const data=await fetchJSON("/api/schedules"); const schedules=data.schedules||{};
+    const entries=Object.entries(schedules).sort((a,b)=>(a[1].time||"").localeCompare(b[1].time||""));
+    const stats={Mon:0,Tue:0,Wed:0,Thu:0,Fri:0,Sat:0,Sun:0};
+    for(const [,s] of entries){for(const d of (s.days||[])){if(stats[d]!==undefined) stats[d]+=1;}}
+    renderWeek(stats); renderTimeline(entries);
+  }
+  function navWire(){
+    document.querySelectorAll('a[href="#"]').forEach((a)=>{
+      const t = (a.textContent || "").toUpperCase();
+      if (t.includes("DASHBOARD")) a.href = "/";
+      else if (t.includes("SCHEDULER")) a.href = "/scheduler";
+      else if (t.includes("LOGS") || t.includes("PROFILES") || t.includes("HELP") || t.includes("TERMINAL")) a.href = "/legacy";
+    });
+    document.querySelectorAll("button").forEach((b)=>{
+      const t = (b.textContent || "").toUpperCase().trim();
+      if (t.includes("DASH")) b.onclick = ()=>window.location.href="/";
+      if (t.includes("LOGS")) b.onclick = ()=>window.location.href="/legacy";
+      if (t.includes("PROF")) b.onclick = ()=>window.location.href="/legacy";
+      if (t.includes("INIT_PURGE")) b.onclick = async ()=>{
+        if (!confirm("Delete all schedules?")) return;
+        if (!ensureToken()) return;
+        try {
+          const d = await fetchJSON("/api/schedules");
+          const schedules = d.schedules || {};
+          for (const sid of Object.keys(schedules)) {
+            await fetchJSON(`/api/schedules/${encodeURIComponent(sid)}`, { method:"DELETE" });
+          }
+          await loadSchedules();
+          alert("All schedules removed.");
+        } catch (e) {
+          alert("Purge failed: " + e.message);
+        }
+      };
+      if (t.includes("MORNING WARM-UP")) b.onclick = ()=>window.location.href="/add";
+      if (t.includes("NIGHT COOLING")) b.onclick = ()=>window.location.href="/add";
+      if (t.includes("WORK HOURS")) b.onclick = ()=>window.location.href="/add";
+      if (t.includes("ECO SAVE")) b.onclick = ()=>window.location.href="/add";
+    });
+  }
+  document.getElementById("newEventBtn")?.addEventListener("click",()=>{window.location.href="/add";});
+  navWire();
+  loadSchedules().catch((e)=>console.error("Scheduler load failed:",e));
+  setInterval(()=>loadSchedules().catch(()=>{}),30000);
+</script>
+</body></html>

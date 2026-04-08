@@ -15,12 +15,13 @@ import os
 import subprocess
 import sys
 import threading as _th
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ SCHEDULES_FILE = HERE / "miraie_schedules.json"
 AC_STATE_FILE  = HERE / "ac_state.json"
 PROFILES_FILE  = HERE / "ac_profiles.json"
 STATIC_DIR     = HERE / "static"
+FRONTEND_DIST  = HERE.parent / "frontend" / "dist"
 
 app = FastAPI(title="Miraie Control", docs_url=None, redoc_url=None)
 
@@ -89,6 +91,8 @@ _DEFAULT_PROFILES = [
 ]
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+API_TOKEN = os.environ.get("MIRAIE_API_TOKEN", "").strip()
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,6 +172,28 @@ def send_command(
         timeout=20,
     )
     return result.stdout + result.stderr
+
+
+def _is_authorized(request: Request) -> bool:
+    """
+    Token auth for state-changing API routes.
+    If MIRAIE_API_TOKEN is unset, auth is treated as disabled.
+    """
+    if not API_TOKEN:
+        return True
+    auth = request.headers.get("authorization", "")
+    supplied = request.headers.get("x-api-token", "")
+    if auth.lower().startswith("bearer "):
+        supplied = auth.split(" ", 1)[1].strip()
+    return bool(supplied) and secrets.compare_digest(supplied, API_TOKEN)
+
+
+def _unauthorized() -> JSONResponse:
+    return JSONResponse(
+        {"ok": False, "error": "unauthorized"},
+        status_code=401,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +298,55 @@ async def dashboard_new():
     return RedirectResponse("/legacy", status_code=302)
 
 
+@app.get("/scheduler", response_class=HTMLResponse)
+async def scheduler_page():
+    page = STATIC_DIR / "scheduler.html"
+    if page.exists():
+        return HTMLResponse(page.read_text())
+    return RedirectResponse("/", status_code=302)
+
+
+@app.get("/logs", response_class=HTMLResponse)
+async def logs_page():
+    page = STATIC_DIR / "logs.html"
+    if page.exists():
+        return HTMLResponse(page.read_text())
+    return JSONResponse({"ok": False, "error": "logs.html missing"}, status_code=404)
+
+
+@app.get("/onefile", response_class=HTMLResponse)
+async def onefile_page():
+    page = STATIC_DIR / "onefile_app.html"
+    if page.exists():
+        return HTMLResponse(page.read_text())
+    return JSONResponse({"ok": False, "error": "onefile_app.html missing"}, status_code=404)
+
+
+@app.get("/app", response_class=HTMLResponse)
+async def react_app_root():
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(index.read_text())
+    return JSONResponse({"ok": False, "error": "React frontend not built yet"}, status_code=503)
+
+
+@app.get("/app/{subpath:path}")
+async def react_app_paths(subpath: str):
+    if not FRONTEND_DIST.exists():
+        return JSONResponse({"ok": False, "error": "React frontend not built yet"}, status_code=503)
+    target = (FRONTEND_DIST / subpath).resolve()
+    try:
+        target.relative_to(FRONTEND_DIST.resolve())
+    except ValueError:
+        return JSONResponse({"ok": False, "error": "invalid path"}, status_code=400)
+    if target.exists() and target.is_file():
+        return FileResponse(target)
+    index = FRONTEND_DIST / "index.html"
+    if index.exists():
+        return HTMLResponse(index.read_text())
+    return JSONResponse({"ok": False, "error": "React frontend not built yet"}, status_code=503)
+
+
 # ---------------------------------------------------------------------------
 # ── REST API
 # ---------------------------------------------------------------------------
@@ -289,7 +364,9 @@ async def api_get_state():
 
 
 @app.post("/api/control")
-async def api_control(req: ControlRequest):
+async def api_control(req: ControlRequest, request: Request):
+    if not _is_authorized(request):
+        return _unauthorized()
     state = load_ac_state()
 
     # ── Core ───────────────────────────────────────────────────────────────
@@ -354,6 +431,8 @@ async def api_get_schedules():
 
 @app.post("/api/schedules")
 async def api_add_schedule(req: Request):
+    if not _is_authorized(req):
+        return _unauthorized()
     data      = await req.json()
     time_str  = data.get("time", "00:00")
     action    = data.get("action", "on").lower()
@@ -396,7 +475,9 @@ async def api_add_schedule(req: Request):
 
 
 @app.delete("/api/schedules/{sid:path}")
-async def api_delete_schedule(sid: str):
+async def api_delete_schedule(sid: str, request: Request):
+    if not _is_authorized(request):
+        return _unauthorized()
     schedules = load_schedules()
     schedules.pop(sid, None)
     save_schedules(schedules)
@@ -410,8 +491,10 @@ async def api_delete_schedule(sid: str):
 
 
 @app.post("/api/schedules/sync")
-async def api_sync_schedules():
+async def api_sync_schedules(request: Request):
     """Re-install all schedules into crontab. Idempotent."""
+    if not _is_authorized(request):
+        return _unauthorized()
     cron = _sync_crontab()
     return JSONResponse(cron)
 
@@ -449,8 +532,10 @@ async def api_get_timers():
 
 
 @app.post("/api/timer")
-async def api_set_timer(req: TimerRequest):
+async def api_set_timer(req: TimerRequest, request: Request):
     """Set a one-shot or sleep timer."""
+    if not _is_authorized(request):
+        return _unauthorized()
     delay = req.hours * 3600 + req.minutes * 60
     if delay <= 0:
         return JSONResponse({"ok": False, "error": "delay must be > 0"}, status_code=400)
@@ -491,8 +576,10 @@ async def api_set_timer(req: TimerRequest):
 
 
 @app.delete("/api/timer/{timer_id}")
-async def api_cancel_timer(timer_id: str):
+async def api_cancel_timer(timer_id: str, request: Request):
     """Cancel an active timer."""
+    if not _is_authorized(request):
+        return _unauthorized()
     if timer_id == "sleep":
         if _sleep_state["timer"]:
             _sleep_state["timer"].cancel()
@@ -510,7 +597,9 @@ async def api_get_profiles():
 
 
 @app.post("/api/profiles")
-async def api_save_profile(req: ProfileRequest):
+async def api_save_profile(req: ProfileRequest, request: Request):
+    if not _is_authorized(request):
+        return _unauthorized()
     profiles = load_profiles()
     for i, p in enumerate(profiles):
         if p["name"].upper() == req.name.upper():
@@ -523,7 +612,9 @@ async def api_save_profile(req: ProfileRequest):
 
 
 @app.delete("/api/profiles/{name}")
-async def api_delete_profile(name: str):
+async def api_delete_profile(name: str, request: Request):
+    if not _is_authorized(request):
+        return _unauthorized()
     profiles = [p for p in load_profiles() if p["name"].upper() != name.upper()]
     save_profiles(profiles)
     return JSONResponse({"ok": True})
@@ -538,6 +629,28 @@ async def api_status():
         "device":         session["devices"][0]["name"] if session else None,
         "schedule_count": len(load_schedules()),
         "time":           datetime.now(timezone.utc).isoformat(),
+    })
+
+
+_ALLOWED_LOGS = {"cron", "daemon", "web"}
+
+@app.get("/api/logs")
+async def api_logs(file: str = "cron", n: int = 200):
+    """Return last N lines from a log file (cron | daemon | web)."""
+    if file not in _ALLOWED_LOGS:
+        return JSONResponse(
+            {"ok": False, "error": f"unknown log file '{file}'; choose from {sorted(_ALLOWED_LOGS)}"},
+            status_code=400,
+        )
+    log_path = HERE / "logs" / f"{file}.log"
+    if not log_path.exists():
+        return JSONResponse({"ok": True, "file": file, "lines": [], "exists": False})
+    lines = log_path.read_text(errors="replace").splitlines()
+    return JSONResponse({
+        "ok":    True,
+        "file":  file,
+        "lines": lines[-max(1, min(n, 2000)):],
+        "total": len(lines),
     })
 
 
@@ -741,5 +854,7 @@ async def status_alias():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("MIRAIE_PORT", 8001))
+    if not API_TOKEN:
+        log.warning("MIRAIE_API_TOKEN is not set; write API endpoints are unauthenticated.")
     print(f"\n  Miraie Dashboard → http://localhost:{port}\n")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
