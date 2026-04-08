@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { api } from '../api'
 import { AnimatedText } from '../components/AnimatedText'
+import { CyberButton } from '../components/CyberButton'
+import { CyberCard } from '../components/CyberCard'
+import { staggerCards, cardReveal } from '../lib/animationVariants'
 import type { ACState, TimerStatus } from '../types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -55,12 +58,12 @@ const defaults: ACState = {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const [state, setState]           = useState<ACState>(defaults)
-  const [timers, setTimers]         = useState<Record<string, TimerStatus>>({})
-  const [loading, setLoading]       = useState(false)
+  const [state, setState]               = useState<ACState>(defaults)
+  const [timers, setTimers]             = useState<Record<string, TimerStatus>>({})
+  const [loading, setLoading]           = useState(false)
   const [timerLoading, setTimerLoading] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(30)
-  const [error, setError]           = useState<string | null>(null)
+  const [error, setError]               = useState<string | null>(null)
 
   function showError(msg: string) { setError(msg) }
 
@@ -130,14 +133,15 @@ export function DashboardPage() {
             </div>
             <h1 className="pageTitle" style={{ margin: 0 }}>Command_Core</h1>
           </div>
-          <button
+          <CyberButton
             className={state.power ? 'dangerBtn' : 'primaryBtn'}
+            soundType="toggle"
             onClick={() => send({ power: !state.power })}
             disabled={loading}
             style={{ fontWeight: 700, letterSpacing: '0.1em' }}
           >
             {state.power ? 'TURN OFF' : 'TURN ON'}
-          </button>
+          </CyberButton>
         </div>
 
         {/* ── Status bar ────────────────────────────────────────────── */}
@@ -148,96 +152,138 @@ export function DashboardPage() {
           <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>· {state.schedule_count} schedule(s)</span>
         </div>
 
+        {/* ── Cards grid ────────────────────────────────────────────── */}
         <motion.div
           className="cards"
           initial="hidden"
           animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04 } } }}
+          variants={staggerCards}
         >
           {/* ── Temperature & Mode ────────────────────────────────── */}
-          <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
+          <CyberCard variants={cardReveal}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Temperature</p>
             <div className="row" style={{ marginBottom: 12 }}>
-              <button onClick={() => send({ temp: Math.max(16, state.temp - 1) })} disabled={loading} style={{ fontSize: 18, fontWeight: 700, width: 36, height: 36 }}>−</button>
+              <CyberButton
+                soundType="click"
+                onClick={() => send({ temp: Math.max(16, state.temp - 1) })}
+                disabled={loading}
+                style={{ fontSize: 18, fontWeight: 700, width: 36, height: 36 }}
+              >
+                −
+              </CyberButton>
               <strong style={{ fontSize: 32, fontWeight: 900, color: state.power ? '#8eff71' : 'rgba(255,255,255,0.4)', letterSpacing: '-0.02em' }}>
                 {state.temp}<span style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>°C</span>
               </strong>
-              <button onClick={() => send({ temp: Math.min(30, state.temp + 1) })} disabled={loading} style={{ fontSize: 18, fontWeight: 700, width: 36, height: 36 }}>+</button>
+              <CyberButton
+                soundType="click"
+                onClick={() => send({ temp: Math.min(30, state.temp + 1) })}
+                disabled={loading}
+                style={{ fontSize: 18, fontWeight: 700, width: 36, height: 36 }}
+              >
+                +
+              </CyberButton>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>Mode</div>
             <div className="chipRow">
               {(['cool', 'dry', 'fan', 'auto'] as const).map((mode) => (
-                <button key={mode} className={state.mode === mode ? 'activeBtn' : ''} onClick={() => send({ mode })} disabled={loading}>
+                <CyberButton
+                  key={mode}
+                  soundType="toggle"
+                  className={state.mode === mode ? 'activeBtn' : ''}
+                  onClick={() => send({ mode })}
+                  disabled={loading}
+                >
                   {mode.toUpperCase()}
-                </button>
+                </CyberButton>
               ))}
             </div>
-          </motion.div>
+          </CyberCard>
 
           {/* ── Fan & Features ────────────────────────────────────── */}
-          <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
+          <CyberCard variants={cardReveal}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Fan Speed</p>
             <div className="chipRow" style={{ marginBottom: 12 }}>
               {(['auto', 'low', 'medium', 'high'] as const).map((fan) => (
-                <button key={fan} className={state.fan === fan ? 'activeBtn' : ''} onClick={() => send({ fan })} disabled={loading}>
+                <CyberButton
+                  key={fan}
+                  soundType="toggle"
+                  className={state.fan === fan ? 'activeBtn' : ''}
+                  onClick={() => send({ fan })}
+                  disabled={loading}
+                >
                   {fan}
-                </button>
+                </CyberButton>
               ))}
             </div>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 6 }}>Features</p>
             <div className="chipRow">
-              <button className={state.eco      ? 'activeBtn' : ''} onClick={() => send({ eco:      !state.eco,      ...(state.eco      ? {} : { powerful: false }) })} disabled={loading}>ECO</button>
-              <button className={state.powerful ? 'activeBtn' : ''} onClick={() => send({ powerful: !state.powerful, ...(state.powerful ? {} : { eco: false }) })}      disabled={loading}>TURBO</button>
+              <CyberButton
+                soundType="toggle"
+                className={state.eco ? 'activeBtn' : ''}
+                onClick={() => send({ eco: !state.eco, ...(state.eco ? {} : { powerful: false }) })}
+                disabled={loading}
+              >
+                ECO
+              </CyberButton>
+              <CyberButton
+                soundType="toggle"
+                className={state.powerful ? 'activeBtn' : ''}
+                onClick={() => send({ powerful: !state.powerful, ...(state.powerful ? {} : { eco: false }) })}
+                disabled={loading}
+              >
+                TURBO
+              </CyberButton>
             </div>
-          </motion.div>
+          </CyberCard>
 
           {/* ── Airflow / Swing ───────────────────────────────────── */}
-          <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
+          <CyberCard variants={cardReveal}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Airflow</p>
 
-            {/* Vertical swing: AUTO + fixed positions 1–5 in one unified row */}
             <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>
               V·Swing Position
             </div>
             <div className="chipRow" style={{ marginBottom: 10 }}>
-              <button
+              <CyberButton
+                soundType="toggle"
                 className={state.swing_v ? 'activeBtn' : ''}
                 onClick={() => send({ swing_v: true })}
                 disabled={loading}
                 title="Vertical auto-sweep"
               >
                 AUTO
-              </button>
+              </CyberButton>
               {([1, 2, 3, 4, 5] as const).map((angle) => (
-                <button
+                <CyberButton
                   key={angle}
+                  soundType="toggle"
                   className={!state.swing_v && state.swing_angle === angle ? 'activeBtn' : ''}
                   onClick={() => send({ swing_v: false, swing_angle: angle })}
                   disabled={loading}
                 >
                   {angle}
-                </button>
+                </CyberButton>
               ))}
             </div>
 
-            {/* Horizontal swing toggle */}
             <div style={{ fontSize: 9, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: 6 }}>
               H·Swing
             </div>
             <div className="chipRow">
-              <button
+              <CyberButton
+                soundType="toggle"
                 className={state.swing_h ? 'activeBtn' : ''}
                 onClick={() => send({ swing_h: !state.swing_h })}
                 disabled={loading}
                 title="Horizontal auto-sweep"
               >
                 {state.swing_h ? 'AUTO' : 'OFF'}
-              </button>
+              </CyberButton>
             </div>
-          </motion.div>
+          </CyberCard>
 
           {/* ── Timers ────────────────────────────────────────────── */}
-          <motion.div className="card" variants={{ hidden: { opacity: 0, scale: 0.98 }, show: { opacity: 1, scale: 1 } }}>
+          <CyberCard variants={cardReveal}>
             <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>Timers</p>
             <div className="row" style={{ marginBottom: 10 }}>
               <input
@@ -252,12 +298,11 @@ export function DashboardPage() {
             </div>
 
             <div className="chipRow" style={{ marginBottom: 8 }}>
-              <button onClick={() => setTimer('on')}    disabled={timerLoading}>ON timer</button>
-              <button onClick={() => setTimer('off')}   disabled={timerLoading}>OFF timer</button>
-              <button onClick={() => setTimer('sleep')} disabled={timerLoading}>SLEEP</button>
+              <CyberButton soundType="click" onClick={() => setTimer('on')}    disabled={timerLoading}>ON timer</CyberButton>
+              <CyberButton soundType="click" onClick={() => setTimer('off')}   disabled={timerLoading}>OFF timer</CyberButton>
+              <CyberButton soundType="click" onClick={() => setTimer('sleep')} disabled={timerLoading}>SLEEP</CyberButton>
             </div>
 
-            {/* Timer status rows */}
             {(['on', 'off', 'sleep'] as const).map((id) => {
               const t = timers[id]
               const active = t?.active ?? false
@@ -270,25 +315,24 @@ export function DashboardPage() {
                     {id.toUpperCase()}
                     {active && (
                       <span style={{ marginLeft: 6, fontSize: 9, color: '#00fbfb' }}>
-                        {id === 'sleep'
-                          ? `step ${t.steps ?? 0}`
-                          : formatSeconds(t.remaining_s ?? 0)}
+                        {id === 'sleep' ? `step ${t.steps ?? 0}` : formatSeconds(t.remaining_s ?? 0)}
                       </span>
                     )}
                   </span>
                   {active && (
-                    <button
+                    <CyberButton
+                      soundType="click"
                       onClick={() => cancelTimer(id)}
                       disabled={timerLoading}
                       style={{ fontSize: 9, padding: '2px 8px', borderColor: 'rgba(255,115,81,0.4)', color: '#ff7351' }}
                     >
                       Cancel
-                    </button>
+                    </CyberButton>
                   )}
                 </div>
               )
             })}
-          </motion.div>
+          </CyberCard>
         </motion.div>
 
         {/* ── Terminal status strip ──────────────────────────────────── */}

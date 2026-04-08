@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { api } from '../api'
+import { CyberButton } from '../components/CyberButton'
+import { soundEngine } from '../lib/soundEngine'
+import { staggerGrid, gridCell, timelineEntry } from '../lib/animationVariants'
 import type { Profile, ScheduleEntry } from '../types'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -82,7 +85,7 @@ interface AddModalProps {
   onClose: () => void
   onSave: (time: string, action: 'on' | 'off', days: Day[]) => Promise<void>
   initialDays: Day[]
-  preset?: Profile  // when opened from a preset, pre-label the modal
+  preset?: Profile
 }
 
 function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
@@ -124,7 +127,13 @@ function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
           <span style={{ ...label, color: C.sec }}>
             {preset ? `Schedule :: ${preset.name}` : 'New_Schedule_Event'}
           </span>
-          <button style={{ background: 'none', border: 'none', color: C.mute, cursor: 'pointer', fontSize: 18 }} onClick={onClose}>✕</button>
+          <CyberButton
+            soundType="click"
+            style={{ background: 'none', border: 'none', color: C.mute, cursor: 'pointer', fontSize: 18 }}
+            onClick={onClose}
+          >
+            ✕
+          </CyberButton>
         </div>
 
         {preset && (
@@ -144,9 +153,14 @@ function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
           <div style={{ ...label, marginBottom: 6 }}>Action</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['on', 'off'] as const).map((a) => (
-              <button key={a} style={{ ...chip(action === a, a === 'on' ? C.pri : C.err), flex: 1, padding: '8px 0' }} onClick={() => setAction(a)}>
+              <CyberButton
+                key={a}
+                soundType="toggle"
+                style={{ ...chip(action === a, a === 'on' ? C.pri : C.err), flex: 1, padding: '8px 0' }}
+                onClick={() => setAction(a)}
+              >
                 {a === 'on' ? 'TURN ON' : 'TURN OFF'}
-              </button>
+              </CyberButton>
             ))}
           </div>
         </div>
@@ -155,22 +169,29 @@ function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
           <div style={{ ...label, marginBottom: 6 }}>Repeat on days</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
             {ALL_DAYS.map((d) => (
-              <button key={d} style={{ ...chip(days.includes(d), C.sec), padding: '6px 2px', fontSize: 9 }} onClick={() => toggleDay(d)}>
+              <CyberButton
+                key={d}
+                soundType="toggle"
+                style={{ ...chip(days.includes(d), C.sec), padding: '6px 2px', fontSize: 9 }}
+                onClick={() => toggleDay(d)}
+              >
                 {d.slice(0, 2)}
-              </button>
+              </CyberButton>
             ))}
           </div>
           {!days.length && <p style={{ fontSize: 9, color: C.err, marginTop: 4, ...mono }}>Select at least one day</p>}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={{ ...btn('ghost'), flex: 1, padding: '10px 0' }} onClick={onClose}>Cancel</button>
-          <button
+          <CyberButton soundType="click" style={{ ...btn('ghost'), flex: 1, padding: '10px 0' }} onClick={onClose}>Cancel</CyberButton>
+          <CyberButton
+            soundType="click"
             style={{ ...btn('primary'), flex: 1, padding: '10px 0', opacity: busy || !days.length ? 0.55 : 1 }}
-            onClick={submit} disabled={busy || !days.length}
+            onClick={submit}
+            disabled={busy || !days.length}
           >
             {busy ? 'Saving…' : 'Apply_To_Cron'}
-          </button>
+          </CyberButton>
         </div>
       </motion.div>
     </motion.div>
@@ -180,17 +201,25 @@ function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 export function SchedulerPage() {
-  const [schedules, setSchedules]   = useState<Record<string, ScheduleEntry>>({})
-  const [profiles, setProfiles]     = useState<Profile[]>([])
-  const [logLines, setLogLines]     = useState<string[]>([])
-  const [selectedDay, setSelectedDay] = useState<Day>(todayAbbr())
-  const [addPreset, setAddPreset]   = useState<Profile | null>(null)  // null = no modal, Profile = preset modal
-  const [showAdd, setShowAdd]       = useState(false)
-  const [syncing, setSyncing]       = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [clock, setClock]           = useState(nowTime())
-  const consoleRef                  = useRef<HTMLDivElement>(null)
+  const [schedules, setSchedules]       = useState<Record<string, ScheduleEntry>>({})
+  const [profiles, setProfiles]         = useState<Profile[]>([])
+  const [logLines, setLogLines]         = useState<string[]>([])
+  const [selectedDay, setSelectedDay]   = useState<Day>(todayAbbr())
+  const [addPreset, setAddPreset]       = useState<Profile | null>(null)
+  const [showAdd, setShowAdd]           = useState(false)
+  const [syncing, setSyncing]           = useState(false)
+  const [deletingId, setDeletingId]     = useState<string | null>(null)
+  const [togglingId, setTogglingId]     = useState<string | null>(null)
+  const [clock, setClock]               = useState(nowTime())
+  const consoleRef                      = useRef<HTMLDivElement>(null)
+
+  // Play sequential tick sounds when the grid first appears
+  useEffect(() => {
+    const timers = ALL_DAYS.map((_, i) =>
+      setTimeout(() => soundEngine.tick(), 80 + i * 58)
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
   async function reload() {
     const data = await api.getSchedules()
@@ -218,10 +247,10 @@ export function SchedulerPage() {
     if (consoleRef.current) consoleRef.current.scrollTop = consoleRef.current.scrollHeight
   }, [logLines])
 
-  const counts    = useMemo(() => countPerDay(schedules), [schedules])
-  const maxCount  = useMemo(() => Math.max(1, ...Object.values(counts)), [counts])
+  const counts     = useMemo(() => countPerDay(schedules), [schedules])
+  const maxCount   = useMemo(() => Math.max(1, ...Object.values(counts)), [counts])
   const dayEntries = useMemo(() => forDay(schedules, selectedDay), [schedules, selectedDay])
-  const today     = todayAbbr()
+  const today      = todayAbbr()
 
   async function handleAddSave(time: string, action: 'on' | 'off', days: Day[]) {
     await api.addSchedule({ time, action, days })
@@ -293,42 +322,52 @@ export function SchedulerPage() {
                 {Object.keys(schedules).length} SCHEDULE{Object.keys(schedules).length !== 1 ? 'S' : ''}
               </span>
             </div>
-            <button style={btn('primary')} onClick={() => setShowAdd(true)}>+ New_Event</button>
-            <button style={{ ...btn('ghost'), opacity: syncing ? 0.5 : 1 }} disabled={syncing} onClick={handleSync}>
+            <CyberButton soundType="click" style={btn('primary')} onClick={() => setShowAdd(true)}>+ New_Event</CyberButton>
+            <CyberButton soundType="click" style={{ ...btn('ghost'), opacity: syncing ? 0.5 : 1 }} disabled={syncing} onClick={handleSync}>
               {syncing ? 'Syncing…' : 'Sync_Cron'}
-            </button>
+            </CyberButton>
           </div>
         </div>
 
-        {/* ── Weekly Day Grid ────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {/* ── Weekly Day Grid — staggered with tick sounds ────────── */}
+        <motion.div
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}
+          initial="hidden"
+          animate="show"
+          variants={staggerGrid}
+        >
           {ALL_DAYS.map((day) => {
             const isToday    = day === today
             const isSelected = day === selectedDay
             const n          = counts[day]
             const barPct     = Math.max(6, Math.round((n / maxCount) * 100))
             return (
-              <button
-                key={day}
-                onClick={() => setSelectedDay(day)}
-                style={{
-                  background: isSelected ? `${C.pri}10` : C.surf2,
-                  borderLeft: `${isSelected ? 3 : 1}px solid ${isSelected ? C.pri : isToday ? `${C.pri}40` : C.surf5}`,
-                  borderTop: `1px solid ${isSelected ? C.pri : C.surf5}`,
-                  borderRight: `1px solid ${isSelected ? C.pri : C.surf5}`,
-                  borderBottom: `1px solid ${isSelected ? C.pri : C.surf5}`,
-                  padding: '10px 8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ ...label, color: isSelected ? C.pri : C.mute }}>{day.toUpperCase()}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, margin: '2px 0 6px', color: isSelected ? C.pri : isToday ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)' }}>{n}</div>
-                <div style={{ height: 3, background: C.surf4, borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${barPct}%`, background: isSelected ? C.pri : `${C.pri}40`, borderRadius: 2, transition: 'width 0.3s' }} />
-                </div>
-              </button>
+              <motion.div key={day} variants={gridCell}>
+                <CyberButton
+                  soundType="toggle"
+                  onClick={() => setSelectedDay(day)}
+                  style={{
+                    width: '100%',
+                    background: isSelected ? `${C.pri}10` : C.surf2,
+                    borderLeft: `${isSelected ? 3 : 1}px solid ${isSelected ? C.pri : isToday ? `${C.pri}40` : C.surf5}`,
+                    borderTop: `1px solid ${isSelected ? C.pri : C.surf5}`,
+                    borderRight: `1px solid ${isSelected ? C.pri : C.surf5}`,
+                    borderBottom: `1px solid ${isSelected ? C.pri : C.surf5}`,
+                    padding: '10px 8px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                    display: 'flex', flexDirection: 'column', gap: 0,
+                    boxShadow: isSelected ? `0 0 14px ${C.pri}18` : 'none',
+                  }}
+                >
+                  <div style={{ ...label, color: isSelected ? C.pri : C.mute }}>{day.toUpperCase()}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, margin: '2px 0 6px', color: isSelected ? C.pri : isToday ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)' }}>{n}</div>
+                  <div style={{ height: 3, background: C.surf4, borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${barPct}%`, background: isSelected ? C.pri : `${C.pri}40`, borderRadius: 2, transition: 'width 0.3s' }} />
+                  </div>
+                </CyberButton>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
 
         {/* ── Timeline + Sidebar ─────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
@@ -339,14 +378,15 @@ export function SchedulerPage() {
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.sec }}>
                 Sequences :: {selectedDay}
               </span>
-              <button
+              <CyberButton
+                soundType="click"
                 style={{ ...btn('danger'), fontSize: 9, padding: '4px 10px', opacity: dayEntries.length ? 0.75 : 0.3 }}
                 onClick={handlePurgeDay}
                 disabled={!dayEntries.length}
                 title={`Delete all schedules for ${selectedDay}`}
               >
                 Clear_{selectedDay}
-              </button>
+              </CyberButton>
             </div>
 
             {/* Timeline rail */}
@@ -362,58 +402,65 @@ export function SchedulerPage() {
                 <div style={{ color: C.mute, fontSize: 11, textAlign: 'center', padding: '28px 0', ...mono }}>
                   NO_SCHEDULES_FOR_{selectedDay.toUpperCase()}
                   <br />
-                  <button style={{ ...btn('primary'), marginTop: 12 }} onClick={() => setShowAdd(true)}>+ Add one</button>
+                  <CyberButton soundType="click" style={{ ...btn('primary'), marginTop: 12 }} onClick={() => setShowAdd(true)}>+ Add one</CyberButton>
                 </div>
               ) : (
-                dayEntries.map(([sid, sched]) => {
-                  const on      = sched.action === 'on'
-                  const deleting = deletingId === sid
-                  const toggling = togglingId === sid
-                  const color   = on ? C.pri : C.err
-                  return (
-                    <motion.div key={sid} layout initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: -52, top: 4, fontSize: 10, fontWeight: 700, ...mono, color }}>
-                        {sched.time}
-                      </span>
-                      <div style={{
-                        background: sched.enabled ? C.surf3 : C.surf1,
-                        padding: 14, borderLeft: `4px solid ${sched.enabled ? `${color}90` : C.outline}`,
-                        opacity: sched.enabled ? 1 : 0.55, transition: 'all 0.2s',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 11, fontWeight: 700, ...mono, color }}>{on ? 'TURN_ON' : 'TURN_OFF'}</div>
-                            <div style={{ fontSize: 9, color: C.mute, marginTop: 3, ...mono }}>DAYS: {sched.days.join(', ')}</div>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                            <span style={{ fontSize: 8, color: C.outline, ...mono }}>{sid}</span>
-                            <div style={{ display: 'flex', gap: 5 }}>
-                              {/* Enable / Disable toggle */}
-                              <button
-                                style={{ ...btn(sched.enabled ? 'ghost' : 'primary'), fontSize: 9, padding: '3px 8px', opacity: toggling ? 0.5 : 1 }}
-                                onClick={() => handleToggle(sid, sched.enabled)}
-                                disabled={toggling}
-                              >
-                                {toggling ? '…' : sched.enabled ? 'Disable' : 'Enable'}
-                              </button>
-                              {/* Delete */}
-                              <button
-                                style={{ ...btn('danger'), fontSize: 9, padding: '3px 8px', opacity: deleting ? 0.5 : 1 }}
-                                onClick={() => handleDelete(sid)}
-                                disabled={deleting}
-                              >
-                                {deleting ? '…' : 'Delete'}
-                              </button>
+                <motion.div
+                  initial="hidden"
+                  animate="show"
+                  variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+                >
+                  {dayEntries.map(([sid, sched]) => {
+                    const on       = sched.action === 'on'
+                    const deleting = deletingId === sid
+                    const toggling = togglingId === sid
+                    const color    = on ? C.pri : C.err
+                    return (
+                      <motion.div key={sid} layout variants={timelineEntry} style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: -52, top: 4, fontSize: 10, fontWeight: 700, ...mono, color }}>
+                          {sched.time}
+                        </span>
+                        <div style={{
+                          background: sched.enabled ? C.surf3 : C.surf1,
+                          padding: 14, borderLeft: `4px solid ${sched.enabled ? `${color}90` : C.outline}`,
+                          opacity: sched.enabled ? 1 : 0.55, transition: 'all 0.2s',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, ...mono, color }}>{on ? 'TURN_ON' : 'TURN_OFF'}</div>
+                              <div style={{ fontSize: 9, color: C.mute, marginTop: 3, ...mono }}>DAYS: {sched.days.join(', ')}</div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                              <span style={{ fontSize: 8, color: C.outline, ...mono }}>{sid}</span>
+                              <div style={{ display: 'flex', gap: 5 }}>
+                                <CyberButton
+                                  soundType="toggle"
+                                  style={{ ...btn(sched.enabled ? 'ghost' : 'primary'), fontSize: 9, padding: '3px 8px', opacity: toggling ? 0.5 : 1 }}
+                                  onClick={() => handleToggle(sid, sched.enabled)}
+                                  disabled={toggling}
+                                >
+                                  {toggling ? '…' : sched.enabled ? 'Disable' : 'Enable'}
+                                </CyberButton>
+                                <CyberButton
+                                  soundType="click"
+                                  style={{ ...btn('danger'), fontSize: 9, padding: '3px 8px', opacity: deleting ? 0.5 : 1 }}
+                                  onClick={() => handleDelete(sid)}
+                                  disabled={deleting}
+                                >
+                                  {deleting ? '…' : 'Delete'}
+                                </CyberButton>
+                              </div>
                             </div>
                           </div>
+                          <div style={{ fontSize: 9, ...mono, color: sched.enabled ? `${C.pri}90` : `${C.err}80` }}>
+                            STATUS: {sched.enabled ? 'ENABLED' : 'DISABLED'}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 9, ...mono, color: sched.enabled ? `${C.pri}90` : `${C.err}80` }}>
-                          STATUS: {sched.enabled ? 'ENABLED' : 'DISABLED'}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )
-                })
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
               )}
             </div>
           </div>
@@ -421,7 +468,7 @@ export function SchedulerPage() {
           {/* Sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {/* Quick Presets — clicking a preset opens the modal with preset context */}
+            {/* Quick Presets */}
             <div style={{ background: C.surf2, border: `1px solid ${C.surf5}`, borderLeft: `2px solid ${C.sec}60`, padding: 16 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.sec, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                 ⚡ Quick_Presets
@@ -430,8 +477,9 @@ export function SchedulerPage() {
                 {profiles.length === 0
                   ? <div style={{ fontSize: 10, color: C.mute, ...mono }}>No profiles — add them via Dashboard</div>
                   : profiles.map((p) => (
-                    <button
+                    <CyberButton
                       key={p.name}
+                      soundType="click"
                       style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: C.surf3, border: `1px solid ${C.surf5}`, cursor: 'pointer', transition: 'all 0.15s', color: 'rgba(255,255,255,0.7)' }}
                       onClick={() => setAddPreset(p)}
                     >
@@ -440,7 +488,7 @@ export function SchedulerPage() {
                         <div style={{ fontSize: 9, color: C.mute, marginTop: 2, ...mono }}>{p.temp}°C · {p.mode.toUpperCase()} · {p.fan}</div>
                       </div>
                       <span style={{ color: C.sec, fontSize: 16 }}>+</span>
-                    </button>
+                    </CyberButton>
                   ))
                 }
               </div>
