@@ -31,8 +31,10 @@ sys.path.insert(0, str(HERE))   # make cron_manager / miraie_scheduler importabl
 SESSION_FILE   = HERE / "miraie_session.json"
 SCHEDULES_FILE = HERE / "miraie_schedules.json"
 AC_STATE_FILE  = HERE / "ac_state.json"
-PROFILES_FILE  = HERE / "ac_profiles.json"
-STATIC_DIR     = HERE / "static"
+PROFILES_FILE          = HERE / "ac_profiles.json"
+SCHEDULER_SETTINGS_FILE = HERE / "scheduler_settings.json"
+SCHEDULE_PROFILES_FILE  = HERE / "schedule_profiles.json"
+STATIC_DIR             = HERE / "static"
 FRONTEND_DIST  = HERE.parent / "frontend" / "dist"
 
 app = FastAPI(title="Miraie Control", docs_url=None, redoc_url=None)
@@ -50,10 +52,12 @@ except Exception as _e:
 
 
 def _sync_crontab() -> dict:
-    """Sync schedules → crontab. Returns result dict; never raises."""
+    """Sync schedules → crontab (or clear if scheduler is disabled). Never raises."""
     if not _CRON_AVAILABLE:
         return {"ok": False, "jobs": 0, "error": "cron_manager not available"}
     try:
+        if not load_scheduler_settings().get("enabled", False):
+            return _cron.clear()   # keep crontab clean when scheduler is off
         return _cron.sync()
     except Exception as exc:
         log.warning("Crontab sync failed: %s", exc)
@@ -136,6 +140,26 @@ def load_profiles() -> list:
 
 def save_profiles(profiles: list) -> None:
     PROFILES_FILE.write_text(json.dumps(profiles, indent=2))
+
+
+def load_scheduler_settings() -> dict:
+    if not SCHEDULER_SETTINGS_FILE.exists():
+        return {"enabled": False}   # safe default — off until explicitly enabled
+    return json.loads(SCHEDULER_SETTINGS_FILE.read_text())
+
+
+def save_scheduler_settings(s: dict) -> None:
+    SCHEDULER_SETTINGS_FILE.write_text(json.dumps(s, indent=2))
+
+
+def load_schedule_profiles() -> dict:
+    if not SCHEDULE_PROFILES_FILE.exists():
+        return {}
+    return json.loads(SCHEDULE_PROFILES_FILE.read_text())
+
+
+def save_schedule_profiles(profiles: dict) -> None:
+    SCHEDULE_PROFILES_FILE.write_text(json.dumps(profiles, indent=2))
 
 
 def send_command(
@@ -527,6 +551,93 @@ async def api_crontab_preview():
         return JSONResponse({"ok": True, "block": block, "installed": installed, "jobs": jobs})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)})
+
+
+@app.delete("/api/schedules")
+async def api_clear_all_schedules(request: Request):
+    """Delete ALL schedules and remove every Miraie cron job."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    save_schedules({})
+    cron = _cron.clear() if _CRON_AVAILABLE else {"ok": True, "jobs": 0}
+    log.info("All schedules cleared by user")
+    return JSONResponse({"ok": True, "cleared": True, "cron_jobs": 0})
+
+
+@app.get("/api/scheduler/status")
+async def api_scheduler_status():
+    """Return whether the scheduler (crontab) is globally enabled."""
+    s    = load_scheduler_settings()
+    jobs = _cron.count_installed_jobs() if _CRON_AVAILABLE else 0
+    return JSONResponse({"enabled": s.get("enabled", False), "cron_jobs": jobs})
+
+
+@app.post("/api/scheduler/status")
+async def api_scheduler_set_status(request: Request):
+    """Enable or disable the scheduler globally (immediately syncs/clears crontab)."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    data    = await request.json()
+    enabled = bool(data.get("enabled", False))
+    save_scheduler_settings({"enabled": enabled})
+    cron = _sync_crontab()
+    log.info("Scheduler %s  |  cron_jobs: %d", "ENABLED" if enabled else "DISABLED", cron.get("jobs", 0))
+    return JSONResponse({"ok": True, "enabled": enabled, "cron_jobs": cron.get("jobs", 0)})
+
+
+@app.get("/api/schedule-profiles")
+async def api_list_schedule_profiles():
+    """List saved schedule profiles."""
+    return JSONResponse({"profiles": load_schedule_profiles()})
+
+
+@app.post("/api/schedule-profiles")
+async def api_save_schedule_profile(request: Request):
+    """Snapshot current schedules under a named profile."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    data = await request.json()
+    name = str(data.get("name", "")).strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "name required"}, status_code=400)
+    profiles = load_schedule_profiles()
+    profiles[name] = {
+        "schedules": load_schedules(),
+        "saved": datetime.now(timezone.utc).isoformat(),
+    }
+    save_schedule_profiles(profiles)
+    log.info("Schedule profile saved: %s  (%d entries)", name, len(profiles[name]["schedules"]))
+    return JSONResponse({"ok": True, "name": name, "profiles": profiles})
+
+
+@app.post("/api/schedule-profiles/{name}/load")
+async def api_load_schedule_profile(name: str, request: Request):
+    """Replace current schedules with a saved profile, then sync."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    profiles = load_schedule_profiles()
+    if name not in profiles:
+        return JSONResponse({"ok": False, "error": "profile not found"}, status_code=404)
+    save_schedules(profiles[name]["schedules"])
+    cron = _sync_crontab()
+    log.info("Schedule profile loaded: %s  |  cron_jobs: %d", name, cron.get("jobs", 0))
+    return JSONResponse({
+        "ok":       True,
+        "name":     name,
+        "schedules": profiles[name]["schedules"],
+        "cron_jobs": cron.get("jobs", 0),
+    })
+
+
+@app.delete("/api/schedule-profiles/{name}")
+async def api_delete_schedule_profile(name: str, request: Request):
+    """Delete a saved schedule profile."""
+    if not _is_authorized(request):
+        return _unauthorized()
+    profiles = load_schedule_profiles()
+    profiles.pop(name, None)
+    save_schedule_profiles(profiles)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/timer")

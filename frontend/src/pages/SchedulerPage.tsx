@@ -201,17 +201,22 @@ function AddModal({ onClose, onSave, initialDays, preset }: AddModalProps) {
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 export function SchedulerPage() {
-  const [schedules, setSchedules]       = useState<Record<string, ScheduleEntry>>({})
-  const [profiles, setProfiles]         = useState<Profile[]>([])
-  const [logLines, setLogLines]         = useState<string[]>([])
-  const [selectedDay, setSelectedDay]   = useState<Day>(todayAbbr())
-  const [addPreset, setAddPreset]       = useState<Profile | null>(null)
-  const [showAdd, setShowAdd]           = useState(false)
-  const [syncing, setSyncing]           = useState(false)
-  const [deletingId, setDeletingId]     = useState<string | null>(null)
-  const [togglingId, setTogglingId]     = useState<string | null>(null)
-  const [clock, setClock]               = useState(nowTime())
-  const consoleRef                      = useRef<HTMLDivElement>(null)
+  const [schedules, setSchedules]             = useState<Record<string, ScheduleEntry>>({})
+  const [profiles, setProfiles]               = useState<Profile[]>([])
+  const [scheduleProfiles, setScheduleProfiles] = useState<Record<string, { schedules: Record<string, ScheduleEntry>; saved: string }>>({})
+  const [logLines, setLogLines]               = useState<string[]>([])
+  const [selectedDay, setSelectedDay]         = useState<Day>(todayAbbr())
+  const [addPreset, setAddPreset]             = useState<Profile | null>(null)
+  const [showAdd, setShowAdd]                 = useState(false)
+  const [syncing, setSyncing]                 = useState(false)
+  const [deletingId, setDeletingId]           = useState<string | null>(null)
+  const [togglingId, setTogglingId]           = useState<string | null>(null)
+  const [clock, setClock]                     = useState(nowTime())
+  const [schedulerEnabled, setSchedulerEnabled] = useState(false)
+  const [togglingScheduler, setTogglingScheduler] = useState(false)
+  const [clearingAll, setClearingAll]         = useState(false)
+  const [loadingProfile, setLoadingProfile]   = useState<string | null>(null)
+  const consoleRef                            = useRef<HTMLDivElement>(null)
 
   // Play sequential tick sounds when the grid first appears
   useEffect(() => {
@@ -233,10 +238,26 @@ export function SchedulerPage() {
     } catch { /* logs are optional */ }
   }
 
+  async function reloadSchedulerStatus() {
+    try {
+      const s = await api.getSchedulerStatus()
+      setSchedulerEnabled(s.enabled)
+    } catch { /* ignore */ }
+  }
+
+  async function reloadScheduleProfiles() {
+    try {
+      const d = await api.getScheduleProfiles()
+      setScheduleProfiles(d.profiles ?? {})
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     reload().catch(() => {})
     api.getProfiles().then((d) => setProfiles(d.profiles ?? [])).catch(() => {})
     reloadLogs()
+    reloadSchedulerStatus().catch(() => {})
+    reloadScheduleProfiles().catch(() => {})
     const clockT = setInterval(() => setClock(nowTime()), 30_000)
     const schedT = setInterval(() => reload().catch(() => {}), 30_000)
     const logT   = setInterval(() => reloadLogs(), 10_000)
@@ -291,6 +312,47 @@ export function SchedulerPage() {
     await reload()
   }
 
+  async function handleClearAll() {
+    if (!window.confirm('Clear ALL schedules and remove every cron job? This cannot be undone.')) return
+    setClearingAll(true)
+    try {
+      await api.clearAllSchedules()
+      await reload()
+      await reloadSchedulerStatus()
+    } finally { setClearingAll(false) }
+  }
+
+  async function handleToggleScheduler() {
+    setTogglingScheduler(true)
+    try {
+      const res = await api.setSchedulerEnabled(!schedulerEnabled)
+      setSchedulerEnabled(res.enabled)
+    } finally { setTogglingScheduler(false) }
+  }
+
+  async function handleSaveProfile() {
+    const name = window.prompt('Profile name (e.g. WORK_WEEK):')?.trim()
+    if (!name) return
+    await api.saveScheduleProfile(name)
+    await reloadScheduleProfiles()
+  }
+
+  async function handleLoadProfile(name: string) {
+    if (!window.confirm(`Load profile "${name}"? This replaces your current schedules.`)) return
+    setLoadingProfile(name)
+    try {
+      await api.loadScheduleProfile(name)
+      await reload()
+      await reloadSchedulerStatus()
+    } finally { setLoadingProfile(null) }
+  }
+
+  async function handleDeleteScheduleProfile(name: string) {
+    if (!window.confirm(`Delete profile "${name}"?`)) return
+    await api.deleteScheduleProfile(name)
+    await reloadScheduleProfiles()
+  }
+
   return (
     <>
       <AnimatePresence>
@@ -315,16 +377,43 @@ export function SchedulerPage() {
             <div style={{ ...label, color: C.pri, marginBottom: 4 }}>System Module</div>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em', textTransform: 'uppercase' }}>Scheduler_Core</h1>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ padding: '4px 12px', background: C.surf3, border: `1px solid ${C.outline}`, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.pri, boxShadow: `0 0 6px ${C.pri}` }} />
               <span style={{ fontSize: 9, fontWeight: 700, color: C.pri, letterSpacing: '0.12em' }}>
                 {Object.keys(schedules).length} SCHEDULE{Object.keys(schedules).length !== 1 ? 'S' : ''}
               </span>
             </div>
+            {/* Master scheduler toggle */}
+            <CyberButton
+              soundType="toggle"
+              style={{
+                padding: '6px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                textTransform: 'uppercase', cursor: togglingScheduler ? 'not-allowed' : 'pointer',
+                borderRadius: 2, border: `1px solid ${schedulerEnabled ? C.pri : C.outline}`,
+                background: schedulerEnabled ? `${C.pri}18` : C.surf4,
+                color: schedulerEnabled ? C.pri : 'rgba(255,255,255,0.35)',
+                boxShadow: schedulerEnabled ? `0 0 10px ${C.pri}30` : 'none',
+                transition: 'all 0.2s', opacity: togglingScheduler ? 0.5 : 1,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+              onClick={handleToggleScheduler}
+              disabled={togglingScheduler}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: schedulerEnabled ? C.pri : C.outline, boxShadow: schedulerEnabled ? `0 0 6px ${C.pri}` : 'none', flexShrink: 0 }} />
+              {togglingScheduler ? '…' : schedulerEnabled ? 'Scheduler_ON' : 'Scheduler_OFF'}
+            </CyberButton>
             <CyberButton soundType="click" style={btn('primary')} onClick={() => setShowAdd(true)}>+ New_Event</CyberButton>
             <CyberButton soundType="click" style={{ ...btn('ghost'), opacity: syncing ? 0.5 : 1 }} disabled={syncing} onClick={handleSync}>
               {syncing ? 'Syncing…' : 'Sync_Cron'}
+            </CyberButton>
+            <CyberButton
+              soundType="click"
+              style={{ ...btn('danger'), opacity: clearingAll ? 0.5 : 1 }}
+              onClick={handleClearAll}
+              disabled={clearingAll}
+            >
+              {clearingAll ? 'Clearing…' : 'Clear_All'}
             </CyberButton>
           </div>
         </div>
@@ -489,6 +578,52 @@ export function SchedulerPage() {
                       </div>
                       <span style={{ color: C.sec, fontSize: 16 }}>+</span>
                     </CyberButton>
+                  ))
+                }
+              </div>
+            </div>
+
+            {/* Schedule Profiles */}
+            <div style={{ background: C.surf2, border: `1px solid ${C.surf5}`, borderLeft: `2px solid ${C.pri}60`, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: C.pri, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ⬡ Schedule_Profiles
+                </div>
+                <CyberButton
+                  soundType="click"
+                  style={{ ...btn('primary'), fontSize: 9, padding: '3px 10px' }}
+                  onClick={handleSaveProfile}
+                  disabled={Object.keys(schedules).length === 0}
+                  title="Save current schedules as a named profile"
+                >
+                  Save_Current
+                </CyberButton>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.keys(scheduleProfiles).length === 0
+                  ? <div style={{ fontSize: 10, color: C.mute, ...mono }}>No profiles saved yet</div>
+                  : Object.entries(scheduleProfiles).map(([name, prof]) => (
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.surf3, border: `1px solid ${C.surf5}`, padding: '8px 10px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, ...mono, color: 'rgba(255,255,255,0.8)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                        <div style={{ fontSize: 9, color: C.mute, marginTop: 2, ...mono }}>{Object.keys(prof.schedules).length} schedules</div>
+                      </div>
+                      <CyberButton
+                        soundType="click"
+                        style={{ ...btn('primary'), fontSize: 9, padding: '3px 8px', opacity: loadingProfile === name ? 0.5 : 1 }}
+                        onClick={() => handleLoadProfile(name)}
+                        disabled={loadingProfile !== null}
+                      >
+                        {loadingProfile === name ? '…' : 'Load'}
+                      </CyberButton>
+                      <CyberButton
+                        soundType="click"
+                        style={{ ...btn('danger'), fontSize: 9, padding: '3px 8px' }}
+                        onClick={() => handleDeleteScheduleProfile(name)}
+                      >
+                        ✕
+                      </CyberButton>
+                    </div>
                   ))
                 }
               </div>

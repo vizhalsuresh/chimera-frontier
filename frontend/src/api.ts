@@ -54,12 +54,42 @@ export const api = {
     }),
   deleteSchedule: (sid: string) =>
     request(`/api/schedules/${encodeURIComponent(sid)}`, { method: 'DELETE' }),
+  clearAllSchedules: () =>
+    request('/api/schedules', { method: 'DELETE' }),
   syncSchedules: () =>
     request('/api/schedules/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
     }),
+
+  // ── Scheduler master toggle ────────────────────────────────────────────
+  getSchedulerStatus: () =>
+    request<{ enabled: boolean; cron_jobs: number }>('/api/scheduler/status'),
+  setSchedulerEnabled: (enabled: boolean) =>
+    request<{ ok: boolean; enabled: boolean; cron_jobs: number }>('/api/scheduler/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    }),
+
+  // ── Schedule profiles ──────────────────────────────────────────────────
+  getScheduleProfiles: () =>
+    request<{ profiles: Record<string, { schedules: Record<string, ScheduleEntry>; saved: string }> }>('/api/schedule-profiles'),
+  saveScheduleProfile: (name: string) =>
+    request('/api/schedule-profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
+  loadScheduleProfile: (name: string) =>
+    request('/api/schedule-profiles/' + encodeURIComponent(name) + '/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }),
+  deleteScheduleProfile: (name: string) =>
+    request('/api/schedule-profiles/' + encodeURIComponent(name), { method: 'DELETE' }),
 
   // ── Timers ─────────────────────────────────────────────────────────────
   getTimers: () => request<Record<string, TimerStatus>>('/api/timer'),
