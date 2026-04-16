@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Miraie Onefile App</title>
+  <style>
+    body{margin:0;font-family:Inter,system-ui;background:#0b0f12;color:#eaf2f6}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .card{background:#121a20;border:1px solid #22303a;border-radius:8px;padding:12px;margin:10px 0}
+    button,input,select{background:#0f171d;border:1px solid #2a3945;color:#eaf2f6;padding:7px 10px;border-radius:6px}
+    button:hover{border-color:#8eff71;cursor:pointer}
+    .tabs button.active{border-color:#8eff71;color:#8eff71}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .sched{display:grid;gap:8px}
+    .item{border-left:3px solid #8eff71}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Miraie Onefile Frontend</h2>
+    <div class="tabs row">
+      <button id="tabCtrl" class="active">Control</button>
+      <button id="tabSched">Scheduler</button>
+    </div>
+
+    <section id="controlView">
+      <div class="card">
+        <div class="row">
+          <button id="powerBtn">Toggle Power</button>
+          <button id="tempDown">Temp -</button>
+          <button id="tempUp">Temp +</button>
+          <select id="modeSel">
+            <option value="cool">cool</option>
+            <option value="dry">dry</option>
+            <option value="fan">fan</option>
+            <option value="auto">auto</option>
+          </select>
+          <select id="fanSel">
+            <option value="auto">auto</option>
+            <option value="quiet">quiet</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+          <button id="saveControl">Send</button>
+        </div>
+      </div>
+      <div class="card mono" id="stateBox">Loading state...</div>
+    </section>
+
+    <section id="schedView" style="display:none">
+      <div class="card">
+        <div class="row">
+          <input id="timeIn" type="time" value="08:00">
+          <select id="actionIn"><option value="on">on</option><option value="off">off</option></select>
+          <input id="daysIn" value="Mon,Tue,Wed,Thu,Fri,Sat,Sun">
+          <button id="addSched">Add</button>
+          <button id="syncSched">Sync Cron</button>
+        </div>
+      </div>
+      <div id="schedList" class="sched"></div>
+    </section>
+  </div>
+
+  <script>
+    let state = { power:false, temp:22, mode:'cool', fan:'auto' };
+    const tokenKey = 'miraie_api_token';
+    function authHeaders() {
+      const t = localStorage.getItem(tokenKey) || '';
+      return t ? {'x-api-token': t} : {};
+    }
+    async function req(url, init={}) {
+      const headers = { ...(init.headers||{}), ...authHeaders() };
+      const r = await fetch(url, {...init, headers});
+      if (r.status === 401) {
+        const t = prompt('Enter MIRAIE_API_TOKEN');
+        if (t) localStorage.setItem(tokenKey, t.trim());
+        throw new Error('Unauthorized');
+      }
+      if (!r.ok) throw new Error('HTTP_'+r.status);
+      return r.json();
+    }
+    async function refreshState() {
+      const d = await req('/api/state');
+      state = {...state, ...d};
+      document.getElementById('modeSel').value = state.mode;
+      document.getElementById('fanSel').value = state.fan;
+      document.getElementById('stateBox').textContent = JSON.stringify(d, null, 2);
+    }
+    async function sendControl(next={}) {
+      state = {...state, ...next};
+      await req('/api/control', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(state)
+      });
+      await refreshState();
+    }
+    async function refreshSchedules() {
+      const d = await req('/api/schedules');
+      const list = document.getElementById('schedList');
+      const entries = Object.entries(d.schedules || {}).sort((a,b)=>a[1].time.localeCompare(b[1].time));
+      list.innerHTML = entries.map(([sid,s]) => `
+        <div class="card item">
+          <div class="row">
+            <strong>${s.time} - ${s.action.toUpperCase()}</strong>
+            <button data-sid="${sid}">Delete</button>
+          </div>
+          <div class="mono">${(s.days||[]).join(', ')}</div>
+        </div>`).join('') || '<div class="card mono">No schedules</div>';
+      list.querySelectorAll('button[data-sid]').forEach(btn => {
+        btn.onclick = async () => {
+          await req('/api/schedules/' + encodeURIComponent(btn.dataset.sid), {method:'DELETE'});
+          await refreshSchedules();
+        };
+      });
+    }
+    document.getElementById('tabCtrl').onclick = () => {
+      document.getElementById('controlView').style.display = '';
+      document.getElementById('schedView').style.display = 'none';
+      tabCtrl.classList.add('active'); tabSched.classList.remove('active');
+    };
+    document.getElementById('tabSched').onclick = async () => {
+      document.getElementById('controlView').style.display = 'none';
+      document.getElementById('schedView').style.display = '';
+      tabSched.classList.add('active'); tabCtrl.classList.remove('active');
+      await refreshSchedules();
+    };
+    powerBtn.onclick = () => sendControl({power: !state.power});
+    tempDown.onclick = () => sendControl({temp: Math.max(16, (state.temp||22)-1)});
+    tempUp.onclick = () => sendControl({temp: Math.min(30, (state.temp||22)+1)});
+    saveControl.onclick = () => sendControl({mode: modeSel.value, fan: fanSel.value});
+    addSched.onclick = async () => {
+      const days = daysIn.value.split(',').map(v => v.trim()).filter(Boolean);
+      await req('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({time: timeIn.value, action: actionIn.value, days})});
+      await refreshSchedules();
+    };
+    syncSched.onclick = async () => { await req('/api/schedules/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}); };
+    refreshState().catch(console.error);
+  </script>
+</body>
+</html>

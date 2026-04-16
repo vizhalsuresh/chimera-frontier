@@ -1,0 +1,16 @@
+{
+  "power": false,
+  "temp": 26,
+  "mode": "cool",
+  "fan": "low",
+  "swing_v": false,
+  "swing_h": false,
+  "swing_angle": 5,
+  "eco": false,
+  "powerful": false,
+  "quiet": false,
+  "nanoe": false,
+  "iauto": false,
+  "last_action": "OFF T:26 M:cool F:low",
+  "last_updated": "2026-04-08T04:34:03.099137+00:00"
+}

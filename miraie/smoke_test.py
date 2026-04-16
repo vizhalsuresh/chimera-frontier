@@ -13,7 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import tempfile
@@ -69,33 +68,65 @@ def _api_smoke() -> None:
     import web
     from fastapi.testclient import TestClient
 
-    with _isolated_web_files() as web_mod:
-        web_mod.send_command = lambda *args, **kwargs: "SMOKE_OK"
-        web_mod._sync_crontab = lambda: {"ok": True, "jobs": 1}
-        client = TestClient(web_mod.app)
+    old_token = web.API_TOKEN
+    try:
+        web.API_TOKEN = ""
+        with _isolated_web_files() as web_mod:
+            web_mod.send_command = lambda *args, **kwargs: "SMOKE_OK"
+            web_mod._sync_crontab = lambda: {"ok": True, "jobs": 1}
+            client = TestClient(web_mod.app)
 
-        r = client.get("/api/status")
-        assert r.status_code == 200, "status endpoint not healthy"
-        payload = r.json()
-        assert "ok" in payload and "time" in payload, "status payload missing keys"
+            r = client.get("/api/status")
+            assert r.status_code == 200, "status endpoint not healthy"
+            payload = r.json()
+            assert "ok" in payload and "time" in payload, "status payload missing keys"
 
-        bad = client.post("/api/schedules", json={"time": "abc", "action": "on", "days": ["Mon"]})
-        assert bad.status_code == 400, "invalid schedule payload should return 400"
+            bad = client.post("/api/schedules", json={"time": "abc", "action": "on", "days": ["Mon"]})
+            assert bad.status_code == 400, "invalid schedule payload should return 400"
 
-        good = client.post("/api/schedules", json={"time": "08:31", "action": "on", "days": ["Mon", "Tue"]})
-        assert good.status_code == 200, "valid schedule payload should succeed"
-        body = good.json()
-        assert body.get("ok") is True and body.get("sid") == "08:30_on", "schedule rounding mismatch"
+            good = client.post("/api/schedules", json={"time": "08:31", "action": "on", "days": ["Mon", "Tue"]})
+            assert good.status_code == 200, "valid schedule payload should succeed"
+            body = good.json()
+            assert body.get("ok") is True and body.get("sid") == "08:30_on", "schedule rounding mismatch"
 
-        state = client.get("/api/state")
-        assert state.status_code == 200, "state endpoint failed"
+            state = client.get("/api/state")
+            assert state.status_code == 200, "state endpoint failed"
 
-        control = client.post("/api/control", json={"power": True, "temp": 23, "mode": "cool", "fan": "auto"})
-        assert control.status_code == 200, "control endpoint failed"
-        control_body = control.json()
-        assert control_body.get("power") is True and control_body.get("temp") == 23
+            control = client.post("/api/control", json={"power": True, "temp": 23, "mode": "cool", "fan": "auto"})
+            assert control.status_code == 200, "control endpoint failed"
+            control_body = control.json()
+            assert control_body.get("power") is True and control_body.get("temp") == 23
+    finally:
+        web.API_TOKEN = old_token
 
     print("[OK] FastAPI endpoint sanity")
+
+
+def _api_auth_smoke() -> None:
+    print("[SMOKE] FastAPI auth guard sanity ...")
+    import web
+    from fastapi.testclient import TestClient
+
+    old_token = web.API_TOKEN
+    try:
+        web.API_TOKEN = "smoke-token"
+        with _isolated_web_files() as web_mod:
+            web_mod.send_command = lambda *args, **kwargs: "SMOKE_OK"
+            web_mod._sync_crontab = lambda: {"ok": True, "jobs": 1}
+            client = TestClient(web_mod.app)
+
+            unauth = client.post("/api/control", json={"power": True})
+            assert unauth.status_code == 401, "write endpoint should require token"
+
+            auth = client.post(
+                "/api/control",
+                json={"power": True},
+                headers={"x-api-token": "smoke-token"},
+            )
+            assert auth.status_code == 200, "write endpoint should accept valid token"
+    finally:
+        web.API_TOKEN = old_token
+    print("[OK] FastAPI auth guard sanity")
 
 
 def main() -> int:
@@ -106,6 +137,7 @@ def main() -> int:
             "Run unit tests",
         )
         _api_smoke()
+        _api_auth_smoke()
         print("\n[PASS] Miraie smoke test suite passed.")
         return 0
     except Exception as exc:

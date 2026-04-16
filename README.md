@@ -200,6 +200,19 @@ python3 miraie/web.py
 
 Open `http://localhost:8001`.
 
+### One-Line Safe Launch
+
+```bash
+MIRAIE_API_TOKEN='replace-with-a-long-random-token' ./miraie/launch.sh
+```
+
+This one command:
+
+- runs smoke tests
+- checks `miraie_session.json` exists
+- syncs schedules to cron
+- starts the web dashboard with API token protection
+
 ### Run Smoke Test
 
 ```bash
@@ -256,3 +269,37 @@ If you want a public documentation site:
 3. Commit `docs/index.md` from this repo (added for onboarding and security notes).
 
 If the repo is private, GitHub Pages availability depends on your GitHub plan. For private/internal docs, keep the repository private and use a private wiki or internal docs portal.
+
+---
+
+## React Frontend (New)
+
+A new React frontend lives in `frontend/` and is served by FastAPI at `/app` after build.
+
+### Frontend dev
+
+```bash
+cd frontend
+source "$HOME/.nvm/nvm.sh"
+npm install
+npm run dev
+```
+
+### Build and serve from FastAPI
+
+```bash
+cd frontend
+source "$HOME/.nvm/nvm.sh"
+npm run build
+cd ..
+MIRAIE_API_TOKEN='your-token' ./launch.sh
+```
+
+Then open:
+
+- Legacy dashboard: `http://localhost:8001/`
+- React app: `http://localhost:8001/app`
+
+### Rollback
+
+If React has issues, continue using legacy routes (`/`, `/scheduler`, `/legacy`). Backend APIs stay the same.
