@@ -1,16 +1,17 @@
 {
   "power": false,
-  "temp": 26,
-  "mode": "cool",
+  "temp": 25,
+  "mode": "fan",
   "fan": "low",
-  "swing_v": false,
-  "swing_h": false,
-  "swing_angle": 5,
+  "swing_v": true,
+  "swing_angle": 3,
   "eco": false,
-  "powerful": false,
-  "quiet": false,
+  "powerful": true,
   "nanoe": false,
-  "iauto": false,
-  "last_action": "OFF T:26 M:cool F:low",
-  "last_updated": "2026-04-08T04:34:03.099137+00:00"
+  "last_action": "OFF T:25 M:fan F:low [POWER]",
+  "last_updated": "2026-04-25T12:30:13.342834+00:00",
+  "last_synced": null,
+  "swing_h": false,
+  "quiet": false,
+  "iauto": false
 }

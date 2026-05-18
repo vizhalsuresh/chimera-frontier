@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading as _th
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -23,6 +24,24 @@ from typing import Optional
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
+
+# ---------------------------------------------------------------------------
+# Logging — write INFO+ to logs/web.log AND stdout so UI-triggered MQTT
+# commands appear in the log just like cron-triggered ones.
+# ---------------------------------------------------------------------------
+_LOG_DIR = Path(__file__).resolve().parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+
+_fmt = logging.Formatter(
+    "%(asctime)s [miraie_web] %(levelname)s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+_file_handler   = logging.FileHandler(_LOG_DIR / "web.log")
+_file_handler.setFormatter(_fmt)
+_stream_handler = logging.StreamHandler(sys.stdout)
+_stream_handler.setFormatter(_fmt)
+
+logging.basicConfig(level=logging.INFO, handlers=[_file_handler, _stream_handler])
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +56,32 @@ SCHEDULE_PROFILES_FILE  = HERE / "schedule_profiles.json"
 STATIC_DIR             = HERE / "static"
 FRONTEND_DIST  = HERE.parent / "frontend" / "dist"
 
-app = FastAPI(title="Miraie Control", docs_url=None, redoc_url=None)
+# ---------------------------------------------------------------------------
+# Status listener — import lazily so missing deps don't break startup
+# ---------------------------------------------------------------------------
+
+try:
+    from sync_state import start_listener, stop_listener
+    _SYNC_AVAILABLE = True
+except Exception as _e:
+    log.warning("sync_state unavailable: %s", _e)
+    _SYNC_AVAILABLE = False
+    def start_listener(): pass
+    def stop_listener():  pass
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Start background MQTT status listener on boot; stop it cleanly on shutdown."""
+    if _SYNC_AVAILABLE:
+        log.info("Starting background AC status listener...")
+        start_listener()
+    yield
+    if _SYNC_AVAILABLE:
+        stop_listener()
+
+
+app = FastAPI(title="Miraie Control", docs_url=None, redoc_url=None, lifespan=_lifespan)
 
 # ---------------------------------------------------------------------------
 # Cron manager — import lazily so a missing crontab binary doesn't break startup
@@ -75,17 +119,15 @@ _DEFAULT_STATE = {
     "fan":         "auto",    # auto | low | medium | high
     # Airflow
     "swing_v":     True,      # vertical swing (auto sweep)
-    "swing_h":     False,     # horizontal swing
     "swing_angle": 3,         # 1–5 fixed position when swing_v=False
     # Advanced features
     "eco":         False,
     "powerful":    False,     # turbo/powerful mode
-    "quiet":       False,     # sleep/quiet mode
     "nanoe":       False,     # air purification
-    "iauto":       False,     # AI auto mode
     # Meta
     "last_action":  None,
     "last_updated": None,
+    "last_synced":  None,     # set by StatusListener when AC confirms state
 }
 
 _DEFAULT_PROFILES = [
@@ -168,14 +210,24 @@ def send_command(
     mode: str = "cool",
     fan: str = "auto",
     swing_v: bool = True,
-    swing_h: bool = False,
     swing_angle: int = 3,
     eco: bool = False,
     powerful: bool = False,
-    quiet: bool = False,
     nanoe: bool = False,
 ) -> str:
-    """Run miraie_scheduler.py --send in a subprocess. Returns combined stdout+stderr."""
+    """
+    Run miraie_scheduler.py --send in a subprocess and publish via MQTT.
+    Logs a clear 'Sent X → PANASONIC AC' line before the call so UI-triggered
+    commands are visible in web.log alongside cron-triggered ones.
+    Returns combined stdout+stderr from the subprocess.
+    """
+    session  = load_session()
+    dev_name = session["devices"][0]["name"] if session else "AC"
+
+    log.info("────────────────────────────────────────────────────")
+    log.info("UI_TRIGGER    action=%-3s  temp=%d°C  mode=%s  fan=%s",
+             action, temp, mode, fan)
+
     result = subprocess.run(
         [
             "python3", str(HERE / "miraie_scheduler.py"),
@@ -184,18 +236,26 @@ def send_command(
             "--mode",        mode,
             "--fan",         fan,
             "--swing-v",     "1" if swing_v     else "0",
-            "--swing-h",     "1" if swing_h     else "0",
             "--swing-angle", str(swing_angle),
             "--eco",         "1" if eco         else "0",
             "--powerful",    "1" if powerful     else "0",
-            "--quiet",       "1" if quiet        else "0",
             "--nanoe",       "1" if nanoe        else "0",
         ],
         capture_output=True,
         text=True,
         timeout=20,
     )
-    return result.stdout + result.stderr
+    output = result.stdout + result.stderr
+
+    if result.returncode == 0:
+        log.info("Sent %s → %s  T=%d M=%s F=%s eco=%s powerful=%s",
+                 action.upper(), dev_name, temp, mode, fan, eco, powerful)
+        log.info("SUCCESS ✓  command delivered")
+    else:
+        log.error("FAILED sending %s to %s — exit %d\n%s",
+                  action.upper(), dev_name, result.returncode, output.strip())
+
+    return output
 
 
 def _is_authorized(request: Request) -> bool:
@@ -230,13 +290,10 @@ class ControlRequest(BaseModel):
     mode:         Optional[str]  = None
     fan:          Optional[str]  = None
     swing_v:      Optional[bool] = None
-    swing_h:      Optional[bool] = None
     swing_angle:  Optional[int]  = None
     eco:          Optional[bool] = None
     powerful:     Optional[bool] = None
-    quiet:        Optional[bool] = None
     nanoe:        Optional[bool] = None
-    iauto:        Optional[bool] = None
 
 
 class TimerRequest(BaseModel):
@@ -384,6 +441,7 @@ async def api_get_state():
         "online":         session is not None,
         "device":         session["devices"][0]["name"] if session else None,
         "schedule_count": len(load_schedules()),
+        "last_synced":    state.get("last_synced"),   # ISO-8601 from StatusListener
     })
 
 
@@ -393,55 +451,75 @@ async def api_control(req: ControlRequest, request: Request):
         return _unauthorized()
     state = load_ac_state()
 
+    # ── Detect what changed (for descriptive log labels) ───────────────────
+    changed: list[str] = []
+
     # ── Core ───────────────────────────────────────────────────────────────
-    if req.power is not None:
+    if req.power is not None and req.power != state["power"]:
         state["power"] = req.power
+        changed.append("POWER")
     if req.temp is not None:
-        state["temp"] = max(16, min(30, req.temp))
+        new_temp = max(16, min(30, req.temp))
+        if new_temp != state["temp"]:
+            state["temp"] = new_temp
+            changed.append(f"TEMP_CHANGE → {new_temp}°C")
+        else:
+            state["temp"] = new_temp
     if req.mode is not None and req.mode in ("auto", "cool", "dry", "fan"):
+        if req.mode != state["mode"]:
+            changed.append(f"MODE_CHANGE → {req.mode.upper()}")
         state["mode"] = req.mode
     if req.fan is not None and req.fan in ("auto", "low", "medium", "high"):
+        if req.fan != state["fan"]:
+            changed.append(f"FAN_CHANGE → {req.fan.upper()}")
         state["fan"] = req.fan
 
     # ── Airflow ────────────────────────────────────────────────────────────
     if req.swing_v is not None:
+        if req.swing_v != state["swing_v"]:
+            changed.append(f"SWING_V → {'AUTO' if req.swing_v else 'FIXED'}")
         state["swing_v"] = req.swing_v
-    if req.swing_h is not None:
-        state["swing_h"] = req.swing_h
     if req.swing_angle is not None:
-        state["swing_angle"] = max(1, min(5, req.swing_angle))
+        new_angle = max(1, min(5, req.swing_angle))
+        if new_angle != state["swing_angle"]:
+            changed.append(f"SWING_ANGLE → {new_angle}")
+        state["swing_angle"] = new_angle
 
-    # ── Advanced features (mutually exclusive: powerful ↔ eco) ─────────────
     if req.powerful is not None:
+        if req.powerful != state["powerful"]:
+            changed.append(f"TURBO → {'ON' if req.powerful else 'OFF'}")
         state["powerful"] = req.powerful
         if req.powerful:
             state["eco"] = False
     if req.eco is not None:
+        if req.eco != state["eco"]:
+            changed.append(f"ECO → {'ON' if req.eco else 'OFF'}")
         state["eco"] = req.eco
         if req.eco:
             state["powerful"] = False
-    if req.quiet is not None:
-        state["quiet"] = req.quiet
+    
     if req.nanoe is not None:
+        if req.nanoe != state["nanoe"]:
+            changed.append(f"NANOE → {'ON' if req.nanoe else 'OFF'}")
         state["nanoe"] = req.nanoe
-    if req.iauto is not None:
-        state["iauto"] = req.iauto
 
     action = "on" if state["power"] else "off"
+    change_label = ", ".join(changed) if changed else "FULL_SYNC"
+    log.info("UI_CTRL  [%s]  T:%d M:%s F:%s eco=%s powerful=%s",
+             change_label, state["temp"], state["mode"], state["fan"],
+             state["eco"], state["powerful"])
+
     result = send_command(
         action,
         state["temp"],         state["mode"],   state["fan"],
-        state["swing_v"],      state["swing_h"], state["swing_angle"],
-        state["eco"],          state["powerful"], state["quiet"],
+        state["swing_v"],      state["swing_angle"],
+        state["eco"],          state["powerful"],
         state["nanoe"],
     )
-    log.info("API ctrl → %s T:%d M:%s F:%s eco=%s powerful=%s | %s",
-             action.upper(), state["temp"], state["mode"], state["fan"],
-             state["eco"], state["powerful"], result.strip()[:80])
 
     state["last_action"]  = (
         f"{action.upper()} T:{state['temp']} M:{state['mode']} "
-        f"F:{state['fan']}"
+        f"F:{state['fan']} [{change_label}]"
     )
     state["last_updated"] = datetime.now(timezone.utc).isoformat()
     save_ac_state(state)
@@ -984,4 +1062,4 @@ if __name__ == "__main__":
     if not API_TOKEN:
         log.warning("MIRAIE_API_TOKEN is not set; write API endpoints are unauthenticated.")
     print(f"\n  Miraie Dashboard → http://localhost:{port}\n")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

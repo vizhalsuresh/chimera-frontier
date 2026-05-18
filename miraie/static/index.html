@@ -248,6 +248,12 @@ tailwind.config = {
         <span class="text-[9px] text-err/50">/HR</span>
       </div>
     </div>
+    <div class="bg-surf1 p-2.5 border-l-2 border-sec/40">
+      <div class="text-[9px] text-sec uppercase tracking-widest">Synced</div>
+      <div class="text-[11px] font-mono mt-0.5 leading-snug"
+           :class="last_synced ? 'text-sec' : 'text-white/20'"
+           x-text="fmtSynced()">---</div>
+    </div>
   </div>
 
   <!-- ── MAIN CONTROL GRID ───────────────────────────────────────────────── -->
@@ -336,34 +342,16 @@ tailwind.config = {
         <!-- Airflow -->
         <div>
           <div class="sec-label">Airflow_Control</div>
-          <!-- Swing toggles -->
-          <div class="grid grid-cols-2 gap-1.5 mb-2">
-            <button @click="toggleSwing('v')"
-                    class="ctrl-btn py-2.5 gap-1.5"
-                    :class="swing_v ? 'active-ter' : ''">
+          <button @click="cycleSwingV()" :disabled="!power || loading"
+                  class="ctrl-btn py-3 w-full flex items-center justify-between px-4"
+                  :class="swing_v ? 'active-ter' : (swing_angle ? 'active' : '')">
+            <div class="flex items-center gap-2">
               <span class="material-symbols-outlined text-sm">swap_vert</span>
-              VERT
-              <span class="text-[9px] ml-auto" x-text="swing_v ? 'AUTO' : 'FIX'"></span>
-            </button>
-            <button @click="toggleSwing('h')"
-                    class="ctrl-btn py-2.5 gap-1.5"
-                    :class="swing_h ? 'active-ter' : ''">
-              <span class="material-symbols-outlined text-sm">swap_horiz</span>
-              HORIZ
-              <span class="text-[9px] ml-auto" x-text="swing_h ? 'AUTO' : 'OFF'"></span>
-            </button>
-          </div>
-          <!-- Fixed angle selector (only shown when v-swing is off) -->
-          <div x-show="!swing_v" class="space-y-1">
-            <div class="text-[9px] text-white/20 uppercase tracking-widest">Fixed Position</div>
-            <div class="grid grid-cols-5 gap-1">
-              <template x-for="a in [1,2,3,4,5]" :key="a">
-                <button @click="setAngle(a)" :disabled="!power || loading"
-                        class="ctrl-btn py-2" :class="swing_angle===a ? 'active' : ''"
-                        x-text="a"></button>
-              </template>
+              <span class="font-bold tracking-widest text-[11px]">SWING VERTICAL</span>
             </div>
-          </div>
+            <span class="text-[10px] uppercase font-bold" 
+                  x-text="swing_v ? 'AUTO' : 'POS ' + swing_angle"></span>
+          </button>
         </div>
       </div>
 
@@ -373,43 +361,31 @@ tailwind.config = {
         <!-- Advanced Matrix -->
         <div>
           <div class="sec-label">Advanced_Matrix</div>
-          <div class="grid grid-cols-5 gap-1.5 mb-1.5">
+          <div class="grid grid-cols-3 gap-1.5 mb-1.5">
             <button @click="setAdv('eco')" :disabled="!power || loading"
                     class="ctrl-btn flex-col py-3 gap-1" :class="eco ? 'active' : ''">
               <span class="material-symbols-outlined text-sm">eco</span>
-              <span style="font-size:.55rem">ECO</span>
+              <span style="font-size:.55rem">ECO MODE</span>
             </button>
             <button @click="setAdv('powerful')" :disabled="!power || loading"
                     class="ctrl-btn flex-col py-3 gap-1" :class="powerful ? 'active-err' : ''">
               <span class="material-symbols-outlined text-sm">bolt</span>
-              <span style="font-size:.55rem">TURBO</span>
-            </button>
-            <button @click="setAdv('quiet')" :disabled="!power || loading"
-                    class="ctrl-btn flex-col py-3 gap-1" :class="quiet ? 'active-ter' : ''">
-              <span class="material-symbols-outlined text-sm">volume_off</span>
-              <span style="font-size:.55rem">QUIET</span>
+              <span style="font-size:.55rem">POWERFUL</span>
             </button>
             <button @click="setAdv('nanoe')"
                     class="ctrl-btn flex-col py-3 gap-1" :class="nanoe ? 'active-sec' : ''">
               <span class="material-symbols-outlined text-sm"
                     :style="nanoe ? 'font-variation-settings:FILL 1' : ''">cleaning_services</span>
-              <span style="font-size:.55rem">NANOE</span>
-            </button>
-            <button @click="setAdv('iauto')"
-                    class="ctrl-btn flex-col py-3 gap-1" :class="iauto ? 'active' : ''">
-              <span class="material-symbols-outlined text-sm">smart_toy</span>
-              <span style="font-size:.55rem">iAUTO</span>
+              <span style="font-size:.55rem">CLEAN</span>
             </button>
           </div>
           <!-- Mutually exclusive note -->
           <div class="flex gap-1 flex-wrap">
             <span class="text-[9px] text-white/15">Active:</span>
             <span x-show="eco"      class="text-[9px] text-pri">ECO</span>
-            <span x-show="powerful" class="text-[9px] text-err">TURBO</span>
-            <span x-show="quiet"    class="text-[9px] text-ter">QUIET</span>
-            <span x-show="nanoe"    class="text-[9px] text-sec">NANOE</span>
-            <span x-show="iauto"    class="text-[9px] text-pri">iAUTO</span>
-            <span x-show="!eco && !powerful && !quiet && !nanoe && !iauto"
+            <span x-show="powerful" class="text-[9px] text-err">POWERFUL</span>
+            <span x-show="nanoe"    class="text-[9px] text-sec">CLEAN</span>
+            <span x-show="!eco && !powerful && !nanoe"
                   class="text-[9px] text-white/15">STANDARD_MODE</span>
           </div>
         </div>
@@ -568,50 +544,7 @@ tailwind.config = {
     <!-- ── COST + SCHEDULES ─────────────────────────────────────────────── -->
     <div class="bg-surf1 p-4 space-y-4">
 
-      <!-- Cost calculator -->
-      <div>
-        <div class="sec-label">Cost_Matrix</div>
-        <div class="space-y-1.5 mb-2">
-          <div class="flex items-center justify-between">
-            <span class="text-[9px] text-white/25">WATTAGE</span>
-            <div class="flex items-center gap-1">
-              <input type="number" x-model.number="calc.w" min="100" max="10000" step="100"
-                     class="inp text-right w-16 text-[11px] font-mono"/>
-              <span class="text-[9px] text-white/15">W</span>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-[9px] text-white/25">₹ / KWH</span>
-            <div class="flex items-center gap-1">
-              <input type="number" x-model.number="calc.r" min="0.5" max="50" step="0.5"
-                     class="inp text-right w-16 text-[11px] font-mono"/>
-              <span class="text-[9px] text-white/15">₹</span>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-[9px] text-white/25">HRS / DAY</span>
-            <div class="flex items-center gap-1">
-              <input type="number" x-model.number="calc.h" min="1" max="24" step="0.5"
-                     class="inp text-right w-12 text-[11px] font-mono"/>
-              <span class="text-[9px] text-white/15">H</span>
-            </div>
-          </div>
-        </div>
-        <div class="grid grid-cols-3 gap-1 text-center">
-          <div class="bg-surf2 py-1.5">
-            <div class="text-[8px] text-white/20">HR</div>
-            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costHr"></div>
-          </div>
-          <div class="bg-surf2 py-1.5">
-            <div class="text-[8px] text-white/20">DAY</div>
-            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costDay"></div>
-          </div>
-          <div class="bg-surf2 py-1.5">
-            <div class="text-[8px] text-white/20">MO</div>
-            <div class="text-[11px] font-mono text-err font-bold" x-text="'₹'+costMo"></div>
-          </div>
-        </div>
-      </div>
+
 
       <!-- Schedules mini-manager -->
       <div>
@@ -700,7 +633,7 @@ tailwind.config = {
           :class="power ? 'text-black' : 'text-white/40'"
           style="font-variation-settings:'FILL' 1">power_settings_new</span>
   </div>
-  <button class="flex flex-col items-center gap-0.5 text-white/30">
+  <button class="flex flex-col items-center gap-0.5 text-white/30 hover:text-pri" @click="showCostModal = true">
     <span class="material-symbols-outlined text-lg">analytics</span>
     <span class="text-[7px] font-mono">DATA</span>
   </button>
@@ -731,6 +664,7 @@ function acDash() {
     // ─── System ──────────────────────────────────────────────────────────────
     online:        false,
     deviceName:    null,
+    last_synced:   null,
 
     // ─── Profiles ────────────────────────────────────────────────────────────
     profiles: [
@@ -753,6 +687,7 @@ function acDash() {
     // ─── Schedules ───────────────────────────────────────────────────────────
     schedules:     {},
     showSchedModal: false,
+    showCostModal:  false,
     newSched:      { time:'08:00', action:'on', days:['Mo','Tu','We','Th','Fr','Sa','Su'] },
     cronJobs:      0,
     cronSynced:    false,
@@ -816,15 +751,13 @@ function acDash() {
         this.mode        = d.mode;
         this.fan         = d.fan;
         this.swing_v     = d.swing_v     ?? true;
-        this.swing_h     = d.swing_h     ?? false;
         this.swing_angle = d.swing_angle ?? 3;
         this.eco         = d.eco         ?? false;
         this.powerful    = d.powerful    ?? false;
-        this.quiet       = d.quiet       ?? false;
         this.nanoe       = d.nanoe       ?? false;
-        this.iauto       = d.iauto       ?? false;
         this.online      = d.online;
         this.deviceName  = d.device;
+        this.last_synced = d.last_synced ?? null;
       } catch { this.online = false; }
     },
 
@@ -892,15 +825,20 @@ function acDash() {
       if (this.power) this.debounce();
     },
 
-    toggleSwing(axis) {
-      if (axis === 'v') { this.swing_v = !this.swing_v; }
-      else              { this.swing_h = !this.swing_h; }
-      if (this.power) this.debounce();
-    },
-
-    setAngle(a) {
-      this.swing_angle = a;
-      if (this.power) this.debounce();
+    cycleSwingV() {
+      if (!this.power || this.loading) return;
+      if (this.swing_v) {
+        this.swing_v = false;
+        this.swing_angle = 1;
+      } else {
+        if (this.swing_angle < 5) {
+          this.swing_angle++;
+        } else {
+          this.swing_v = true;
+          this.swing_angle = 3;
+        }
+      }
+      this.debounce();
     },
 
     setAdv(key) {
@@ -909,7 +847,7 @@ function acDash() {
       if (key === 'eco'      && !this[key]) this.powerful = false;
       this[key] = !this[key];
       if (this.power) this.debounce();
-      else if (key === 'nanoe' || key === 'iauto') { /* local-only toggles when off */ }
+      else if (key === 'nanoe') { /* local-only toggles when off */ }
     },
 
     async applyProfile(p) {
@@ -927,9 +865,9 @@ function acDash() {
     async sendControl() {
       const payload = {
         power: this.power, temp: this.temp, mode: this.mode, fan: this.fan,
-        swing_v: this.swing_v, swing_h: this.swing_h, swing_angle: this.swing_angle,
-        eco: this.eco, powerful: this.powerful, quiet: this.quiet,
-        nanoe: this.nanoe, iauto: this.iauto,
+        swing_v: this.swing_v, swing_angle: this.swing_angle,
+        eco: this.eco, powerful: this.powerful,
+        nanoe: this.nanoe,
       };
       this.loading = true;
       try {
@@ -937,8 +875,9 @@ function acDash() {
         // Sync state from server response
         Object.assign(this, {
           power: d.power, temp: d.temp, mode: d.mode, fan: d.fan,
+          swing_v: d.swing_v??true, swing_angle: d.swing_angle??3,
           eco: d.eco??false, powerful: d.powerful??false,
-          quiet: d.quiet??false, nanoe: d.nanoe??false,
+          nanoe: d.nanoe??false,
         });
         const act = d.power ? 'ON' : 'OFF';
         this.log('EXEC', `PWR:${act} T:${d.temp}° M:${d.mode.toUpperCase()} F:${d.fan.toUpperCase()}`, 'pri');
@@ -982,6 +921,15 @@ function acDash() {
       if (!s || s <= 0) return '--:--:--';
       const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
       return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    },
+
+    fmtSynced() {
+      if (!this.last_synced) return 'NEVER';
+      const diffS = Math.round((Date.now() - new Date(this.last_synced)) / 1000);
+      if (diffS < 10)  return 'JUST NOW';
+      if (diffS < 60)  return diffS + 's AGO';
+      if (diffS < 3600) return Math.floor(diffS / 60) + 'm AGO';
+      return Math.floor(diffS / 3600) + 'h AGO';
     },
 
     // ─── Schedules ───────────────────────────────────────────────────────────
@@ -1092,6 +1040,75 @@ function acDash() {
     },
   };
 }
+</script>
+
+<!-- Cost Matrix Modal -->
+<div x-data x-show="$store.acDash?.showCostModal" style="display:none"
+     class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4">
+  <!-- Backdrop -->
+  <div class="fixed inset-0 bg-black/80 backdrop-blur-sm"
+       @click="$store.acDash.showCostModal=false"
+       x-transition.opacity.duration.300ms></div>
+  
+  <div class="bg-surf1 border border-white/10 w-full max-w-sm flex flex-col z-10 shadow-2xl"
+       x-transition.scale.80.duration.200ms>
+    <div class="p-4 border-b border-white/5 flex items-center justify-between">
+      <div class="sec-label" style="margin:0">Cost_Matrix</div>
+      <button @click="$store.acDash.showCostModal=false" class="text-white/40 hover:text-white">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <div class="p-5 space-y-4">
+      <div class="space-y-3 mb-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-white/40 tracking-wider">WATTAGE</span>
+          <div class="flex items-center gap-2">
+            <input type="number" x-model.number="$store.acDash.calc.w" min="100" max="10000" step="100"
+                   class="inp text-right w-20 text-sm font-mono"/>
+            <span class="text-xs text-white/30">W</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-white/40 tracking-wider">₹ / KWH</span>
+          <div class="flex items-center gap-2">
+            <input type="number" x-model.number="$store.acDash.calc.r" min="0.5" max="50" step="0.5"
+                   class="inp text-right w-20 text-sm font-mono"/>
+            <span class="text-xs text-white/30">₹</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-white/40 tracking-wider">HRS / DAY</span>
+          <div class="flex items-center gap-2">
+            <input type="number" x-model.number="$store.acDash.calc.h" min="1" max="24" step="0.5"
+                   class="inp text-right w-16 text-sm font-mono"/>
+            <span class="text-xs text-white/30">H</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-surf2 py-3 rounded-sm border border-white/5">
+          <div class="text-[9px] text-white/30 tracking-widest mb-1">PER_HOUR</div>
+          <div class="text-base font-mono text-err font-bold" x-text="'₹'+$store.acDash.costHr"></div>
+        </div>
+        <div class="bg-surf2 py-3 rounded-sm border border-white/5">
+          <div class="text-[9px] text-white/30 tracking-widest mb-1">PER_DAY</div>
+          <div class="text-base font-mono text-err font-bold" x-text="'₹'+$store.acDash.costDay"></div>
+        </div>
+        <div class="bg-surf2 py-3 rounded-sm border border-white/5">
+          <div class="text-[9px] text-white/30 tracking-widest mb-1">PER_MONTH</div>
+          <div class="text-base font-mono text-err font-bold" x-text="'₹'+$store.acDash.costMo"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('acDash', document.querySelector('[x-data="acDash()"]')._x_dataStack[0]);
+  });
 </script>
 
 </body>

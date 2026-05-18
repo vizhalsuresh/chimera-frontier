@@ -1,0 +1,28 @@
+# Git / IDE
+.git
+.gitignore
+.claude
+
+# Docs / non-runtime
+docs/
+README.md
+master_mission.md
+setup.sh
+*.md
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Logs (mounted as volume at runtime)
+miraie/logs/
+
+# Venv if any
+venv/
+.venv/
+
+# Session / HAR (large, mounted as volume)
+miraie/session.har

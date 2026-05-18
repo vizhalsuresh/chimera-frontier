@@ -1,0 +1,5 @@
+[
+  {"name": "SLEEP",    "temp": 24, "mode": "cool", "fan": "low",    "icon": "bed"},
+  {"name": "WORK_HUB", "temp": 22, "mode": "cool", "fan": "medium", "icon": "work"},
+  {"name": "ECO_MAX",  "temp": 26, "mode": "cool", "fan": "auto",   "icon": "savings"}
+]

@@ -75,6 +75,18 @@ export function DashboardPage() {
     return () => { clearInterval(s); clearInterval(t) }
   }, [])
 
+  async function togglePower() {
+    setLoading(true)
+    try {
+      const data = await api.togglePower(!state.power)
+      setState(data)
+    } catch (e) {
+      showError(`Power toggle failed: ${e instanceof Error ? e.message : 'unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function send(next: Partial<ACState>) {
     setLoading(true)
     try {
@@ -136,7 +148,7 @@ export function DashboardPage() {
           <CyberButton
             className={state.power ? 'dangerBtn' : 'primaryBtn'}
             soundType="toggle"
-            onClick={() => send({ power: !state.power })}
+            onClick={togglePower}
             disabled={loading}
             style={{ fontWeight: 700, letterSpacing: '0.1em' }}
           >
