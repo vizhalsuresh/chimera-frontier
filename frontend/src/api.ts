@@ -23,6 +23,17 @@ export const api = {
     return data as ACState
   },
 
+  syncState: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    
+    const { data, error } = await supabase.functions.invoke('miraie-worker', {
+      body: { action: 'status_request', user_id: user.id }
+    })
+    if (error) throw error
+    return data
+  },
+
   control: async (payload: Partial<ACState>) => {
     // For general control, we might still want to use an Edge Function 
     // to ensure the device actually receives the command.

@@ -30,6 +30,28 @@ Deno.serve(async (req) => {
 
     console.log(`Checking schedules for UTC ${timeStr} on ${dayAbbr}`)
 
+    // --- NEW: Status Sync Logic ---
+    // Trigger a state sync for all active users every cron tick
+    const { data: allUsers } = await supabaseClient.from('miraie_auth').select('user_id')
+    if (allUsers) {
+      for (const u of allUsers) {
+        console.log(`Triggering state sync for user ${u.user_id}`)
+        // We trigger it asynchronously and don't wait, to keep cron fast
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/miraie-worker`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+          },
+          body: JSON.stringify({
+            user_id: u.user_id,
+            action: 'status_request' // New action type for worker
+          })
+        }).catch(err => console.error(`Sync trigger failed for ${u.user_id}:`, err))
+      }
+    }
+    // ------------------------------
+
     // Query matching schedules
     const { data: schedules, error } = await supabaseClient
       .from('schedules')

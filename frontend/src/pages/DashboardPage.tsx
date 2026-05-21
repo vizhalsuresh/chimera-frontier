@@ -87,6 +87,19 @@ export function DashboardPage() {
     }
   }
 
+  async function syncState() {
+    setLoading(true)
+    try {
+      await api.syncState()
+      const data = await api.getState()
+      setState(data)
+    } catch (e) {
+      showError(`Sync failed: ${e instanceof Error ? e.message : 'unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function send(next: Partial<ACState>) {
     setLoading(true)
     try {
@@ -145,15 +158,26 @@ export function DashboardPage() {
             </div>
             <h1 className="pageTitle" style={{ margin: 0 }}>Command_Core</h1>
           </div>
-          <CyberButton
-            className={state.power ? 'dangerBtn' : 'primaryBtn'}
-            soundType="toggle"
-            onClick={togglePower}
-            disabled={loading}
-            style={{ fontWeight: 700, letterSpacing: '0.1em' }}
-          >
-            {state.power ? 'TURN OFF' : 'TURN ON'}
-          </CyberButton>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <CyberButton
+              className="primaryBtn"
+              soundType="click"
+              onClick={syncState}
+              disabled={loading}
+              style={{ fontSize: 9, padding: '4px 12px' }}
+            >
+              SYNC STATUS
+            </CyberButton>
+            <CyberButton
+              className={state.power ? 'dangerBtn' : 'primaryBtn'}
+              soundType="toggle"
+              onClick={togglePower}
+              disabled={loading}
+              style={{ fontWeight: 700, letterSpacing: '0.1em' }}
+            >
+              {state.power ? 'TURN OFF' : 'TURN ON'}
+            </CyberButton>
+          </div>
         </div>
 
         {/* ── Status bar ────────────────────────────────────────────── */}
@@ -162,6 +186,11 @@ export function DashboardPage() {
           <span>{state.online ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}</span>
           {state.device && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>· {state.device}</span>}
           <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>· {state.schedule_count} schedule(s)</span>
+          {state.last_synced && (
+            <span style={{ color: 'rgba(0,251,251,0.3)', fontSize: 9, marginLeft: 'auto' }}>
+              SYNCED: {new Date(state.last_synced).toLocaleTimeString()}
+            </span>
+          )}
         </div>
 
         {/* ── Cards grid ────────────────────────────────────────────── */}
