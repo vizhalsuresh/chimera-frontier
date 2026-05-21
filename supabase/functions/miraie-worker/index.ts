@@ -47,16 +47,25 @@ function parseStatus(data: any) {
 
 Deno.serve(async (req) => {
   try {
-    const { user_id, action, device_index = 0 } = await req.json()
-
-    if (!user_id || !action) {
-      return new Response(JSON.stringify({ error: 'user_id and action required' }), { status: 400 })
-    }
+    const body = await req.json().catch(() => ({}));
+    let { user_id, action, device_index = 0 } = body;
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // --- NEW: Auth Detection ---
+    const authHeader = req.headers.get('Authorization')
+    if (!user_id && authHeader) {
+      const { data: { user } } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      user_id = user?.id
+    }
+    // ---------------------------
+
+    if (!user_id || !action) {
+      return new Response(JSON.stringify({ error: 'user_id and action required', received: { user_id, action } }), { status: 400 })
+    }
 
     // 1. Fetch auth data
     const { data: authData, error: authError } = await supabaseClient

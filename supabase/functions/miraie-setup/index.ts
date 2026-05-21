@@ -76,12 +76,13 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization')
     let userId = null
     if (authHeader) {
-      const { data: { user } } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+      if (authError) console.error('Auth check failed:', authError)
       userId = user?.id
     }
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: Missing or invalid Supabase token' }), { 
+      return new Response(JSON.stringify({ error: 'Unauthorized: Missing or invalid Supabase token. Please log in again.' }), { 
         status: 401,
         headers: { "Content-Type": "application/json" }
       })

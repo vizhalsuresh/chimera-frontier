@@ -20,7 +20,7 @@ export const api = {
       body: { action: power ? 'on' : 'off' }
     })
     if (error) throw error
-    return data as ACState
+    return data
   },
 
   syncState: async () => {
