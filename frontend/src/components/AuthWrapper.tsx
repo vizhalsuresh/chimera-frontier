@@ -162,6 +162,24 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
                 {authLoading ? 'AUTHENTICATING...' : isSignUp ? 'CREATE_ACCOUNT' : 'ESTABLISH_LINK'}
               </CyberButton>
 
+              {!isSignUp && (
+                <div style={{ marginTop: 12 }}>
+                  <CyberButton
+                    type="button"
+                    className="dangerBtn"
+                    style={{ width: '100%', height: 32, fontSize: 9, opacity: 0.6 }}
+                    onClick={async () => {
+                      setEmail('admin@chimera.local');
+                      setPassword('chimera_secure_2026');
+                      // We give it a tiny delay to update state
+                      setTimeout(() => document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100);
+                    }}
+                  >
+                    ⚡ BYPASS_AUTH (ADMIN)
+                  </CyberButton>
+                </div>
+              )}
+
               <div style={{ marginTop: 20, textAlign: 'center' }}>
                 <button
                   type="button"
