@@ -12,6 +12,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(false)
 
   useEffect(() => {
     const initSession = async () => {
@@ -41,16 +42,16 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     setAuthError(null)
     soundEngine.click()
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = isSignUp 
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setAuthError(error.message)
       soundEngine.error()
     } else {
       soundEngine.success()
+      if (isSignUp) alert('Verification email sent! Check your inbox to confirm your account.')
     }
     setAuthLoading(false)
   }
@@ -158,8 +159,18 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
                 style={{ width: '100%', height: 42 }}
                 disabled={authLoading}
               >
-                {authLoading ? 'AUTHENTICATING...' : 'ESTABLISH_LINK'}
+                {authLoading ? 'AUTHENTICATING...' : isSignUp ? 'CREATE_ACCOUNT' : 'ESTABLISH_LINK'}
               </CyberButton>
+
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(!isSignUp)}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  {isSignUp ? 'ALREADY_HAVE_ACCOUNT? LOGIN' : 'NEW_SYSTEM_USER? REGISTER'}
+                </button>
+              </div>
             </form>
           </CyberCard>
         </motion.div>
