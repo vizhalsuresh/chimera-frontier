@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { api } from '../api'
+import { supabase } from '../supabaseClient'
+import { soundEngine } from '../lib/soundEngine'
 import { AnimatedText } from '../components/AnimatedText'
 import { CyberButton } from '../components/CyberButton'
 import { CyberCard } from '../components/CyberCard'

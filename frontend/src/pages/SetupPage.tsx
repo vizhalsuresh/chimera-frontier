@@ -24,7 +24,7 @@ export function SetupPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
-      const { data, error } = await supabase.functions.invoke('miraie-setup', {
+      const { error } = await supabase.functions.invoke('miraie-setup', {
         body: { mobile, password }
       })
 
