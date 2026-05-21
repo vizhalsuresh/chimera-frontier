@@ -8,6 +8,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        var root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = '<div style="background:#0a0f12;color:#ff7351;padding:40px;font-family:monospace;height:100vh;"><h1>SYSTEM_HALT: RUNTIME_ERROR</h1><p>' + msg + '</p><p>Line: ' + lineNo + '</p></div>';
+        }
+        return false;
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

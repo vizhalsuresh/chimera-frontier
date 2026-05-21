@@ -14,10 +14,19 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
-    })
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setSession(session)
+      } catch (err) {
+        console.error('Failed to get session:', err)
+        setAuthError('Connection failed. Verify Supabase keys.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    initSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
@@ -48,8 +57,25 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: '#8eff71', fontFamily: 'monospace' }}>
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: '#8eff71', fontFamily: 'monospace', background: '#0a0f12' }}>
         INITIALIZING_SECURE_SESSION...
+      </div>
+    )
+  }
+
+  // Check for missing credentials
+  const isMissingCreds = !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  if (isMissingCreds) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0a0f12', color: '#ff7351', padding: 40, textAlign: 'center', fontFamily: 'monospace' }}>
+        <h1 style={{ fontSize: 24, marginBottom: 20 }}>🛑 CRITICAL_ERROR: MISSING_CREDENTIALS</h1>
+        <p style={{ maxWidth: 600, lineHeight: 1.6 }}>
+          The Supabase URL or Anon Key is missing from the environment variables.<br/><br/>
+          Please check your Vercel Project Settings > Environment Variables.<br/>
+          Ensure <b>VITE_SUPABASE_URL</b> and <b>VITE_SUPABASE_ANON_KEY</b> are set.
+        </p>
+        <CyberButton onClick={() => window.location.reload()} style={{ marginTop: 24 }}>RETRY_CONNECTION</CyberButton>
       </div>
     )
   }
