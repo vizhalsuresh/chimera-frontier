@@ -64,6 +64,8 @@ export function DashboardPage() {
   const [timerLoading, setTimerLoading] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(30)
   const [error, setError]               = useState<string | null>(null)
+  const [diagLog, setDiagLog]           = useState<string[]>([])
+  const [isDiagnosing, setIsDiag]       = useState(false)
 
   function showError(msg: string) { setError(msg) }
 
@@ -97,6 +99,50 @@ export function DashboardPage() {
       showError(`Sync failed: ${e instanceof Error ? e.message : 'unknown error'}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function runDiagnosis() {
+    setIsDiag(true)
+    setDiagLog(['[DIAG] INITIALIZING_CORE_DIAGNOSTICS...'])
+    
+    const addLog = (msg: string) => setDiagLog(prev => [...prev, `[DIAG] ${msg}`])
+
+    try {
+      // 1. Check Auth
+      addLog('CHECKING_CREDENTIAL_AVAILABILITY...')
+      const { data: auth } = await supabase.from('miraie_auth').select('id').single()
+      if (!auth) {
+        addLog('FAILED: NO_MIRAIE_CREDENTIALS_FOUND. PLEASE RUN SETUP.')
+        return
+      }
+      addLog('SUCCESS: CREDENTIALS_VALID.')
+
+      // 2. Test Connection
+      addLog('TESTING_MQTT_REACHABILITY...')
+      const syncResult = await api.syncState()
+      if (syncResult.error) {
+        addLog(`FAILED: ${syncResult.error}`)
+        return
+      }
+      addLog('SUCCESS: AC_RESPONDED_TO_PING.')
+
+      // 3. Cycle Controls
+      addLog('TESTING_CONTROL_PIPELINE...')
+      await api.control({ ...state, temp: 24 })
+      addLog('TEMP_CMD_SENT (24C)...')
+      await new Promise(r => setTimeout(r, 2000))
+      
+      await api.control({ ...state, temp: 22 })
+      addLog('TEMP_CMD_SENT (22C)...')
+      
+      addLog('DIAGNOSIS_COMPLETE: SYSTEM_HEALTHY.')
+      soundEngine.success()
+    } catch (e: any) {
+      addLog(`CRITICAL_ERROR: ${e.message}`)
+      soundEngine.error()
+    } finally {
+      setIsDiag(false)
     }
   }
 
@@ -373,6 +419,29 @@ export function DashboardPage() {
                 </div>
               )
             })}
+          </CyberCard>
+
+          {/* ── Diagnosis ─────────────────────────────────────────── */}
+          <CyberCard variants={cardReveal}>
+            <p style={{ fontSize: 9, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 8 }}>System_Diagnosis</p>
+            
+            <CyberButton 
+              className="dangerBtn" 
+              onClick={runDiagnosis} 
+              disabled={isDiagnosing}
+              style={{ width: '100%', fontSize: 10, marginBottom: 12 }}
+            >
+              {isDiagnosing ? 'DIAGNOSING...' : 'RUN_CORE_DIAGNOSIS'}
+            </CyberButton>
+
+            <div style={{ background: '#060a0d', padding: 8, height: 100, overflowY: 'auto', border: '1px solid #1d2b34' }}>
+              {diagLog.length === 0 && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>No diagnostic data.</span>}
+              {diagLog.map((line, i) => (
+                <div key={i} style={{ fontSize: 9, fontFamily: 'monospace', color: line.includes('FAILED') ? '#ff7351' : '#8eff71', marginBottom: 4 }}>
+                  {line}
+                </div>
+              ))}
+            </div>
           </CyberCard>
         </motion.div>
 

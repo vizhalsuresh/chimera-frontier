@@ -41,6 +41,9 @@ export function AppShell({ children }: PropsWithChildren) {
         <Link className={pathname.includes('/scheduler') ? 'nav active' : 'nav'} to="/scheduler">
           Scheduler
         </Link>
+        <Link className={pathname.includes('/setup') ? 'nav active' : 'nav'} to="/setup">
+          Setup
+        </Link>
 
         <SoundToggle />
       </aside>

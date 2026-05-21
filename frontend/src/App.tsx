@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import { PageTransition } from './components/PageTransition'
 import { DashboardPage } from './pages/DashboardPage'
 import { SchedulerPage } from './pages/SchedulerPage'
+import { SetupPage } from './pages/SetupPage'
 import { AuthWrapper } from './components/AuthWrapper'
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
           <Routes location={location}>
             <Route path="/"          element={<DashboardPage />} />
             <Route path="/scheduler" element={<SchedulerPage />} />
+            <Route path="/setup"     element={<SetupPage />} />
             <Route path="*"          element={<Navigate to="/" replace />} />
           </Routes>
         </PageTransition>
