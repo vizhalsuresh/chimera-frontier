@@ -72,7 +72,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
         <h1 style={{ fontSize: 24, marginBottom: 20 }}>🛑 CRITICAL_ERROR: MISSING_CREDENTIALS</h1>
         <p style={{ maxWidth: 600, lineHeight: 1.6 }}>
           The Supabase URL or Anon Key is missing from the environment variables.<br/><br/>
-          Please check your Vercel Project Settings > Environment Variables.<br/>
+          Please check your Vercel Project Settings &gt; Environment Variables.<br/>
           Ensure <b>VITE_SUPABASE_URL</b> and <b>VITE_SUPABASE_ANON_KEY</b> are set.
         </p>
         <CyberButton onClick={() => window.location.reload()} style={{ marginTop: 24 }}>RETRY_CONNECTION</CyberButton>
