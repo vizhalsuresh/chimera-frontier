@@ -41,7 +41,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
       setAuthError(error.message)
       soundEngine.error()
     } else {
-      soundEngine.confirm()
+      soundEngine.success()
     }
     setAuthLoading(false)
   }

@@ -14,6 +14,7 @@ export type ACState = {
   online: boolean
   device: string | null
   schedule_count: number
+  last_synced?: string
 }
 
 export type ScheduleEntry = {
