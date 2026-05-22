@@ -234,6 +234,15 @@ export function DashboardPage() {
           <span>{state.online ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}</span>
           {state.device && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>· {state.device}</span>}
           <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>· {state.schedule_count} schedule(s)</span>
+          {state.indoor_temp && (
+            <span style={{ color: '#8eff71', fontSize: 10 }}>· IN: {state.indoor_temp}°C</span>
+          )}
+          {state.outdoor_temp && (
+            <span style={{ color: '#ff7351', fontSize: 10 }}>· OUT: {state.outdoor_temp}°C</span>
+          )}
+          {state.error_code && (
+            <span style={{ color: '#ff0040', fontSize: 10, fontWeight: 'bold' }}>· ERR: {state.error_code}</span>
+          )}
           {state.last_synced && (
             <span style={{ color: 'rgba(0,251,251,0.3)', fontSize: 9, marginLeft: 'auto' }}>
               SYNCED: {new Date(state.last_synced).toLocaleTimeString()}

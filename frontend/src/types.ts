@@ -15,6 +15,9 @@ export type ACState = {
   device: string | null
   schedule_count: number
   last_synced?: string
+  indoor_temp?: number
+  outdoor_temp?: number
+  error_code?: string
 }
 
 export type ScheduleEntry = {

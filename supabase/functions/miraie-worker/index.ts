@@ -42,6 +42,13 @@ function parseStatus(data: any) {
   if ("tt" in data) state.powerful = data.tt === "on";
   if ("na" in data) state.nanoe = data.na === "on";
   if ("qt" in data) state.quiet = data.qt === "on";
+  
+  // --- NEW: Diagnostic Fields ---
+  if ("it" in data) state.indoor_temp = parseFloat(data.it);
+  if ("ot" in data) state.outdoor_temp = parseFloat(data.ot);
+  if ("er" in data && data.er !== "00") state.error_code = data.er;
+  // ------------------------------
+  
   return state;
 }
 
